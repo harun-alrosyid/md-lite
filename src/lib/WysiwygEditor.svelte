@@ -16,7 +16,18 @@
   import Subscript from "@tiptap/extension-subscript";
   import Superscript from "@tiptap/extension-superscript";
   import Underline from "@tiptap/extension-underline";
+  import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
+  import { common, createLowlight } from "lowlight";
   import { Markdown } from "tiptap-markdown";
+
+  // Import syntax highlighting theme
+  import "./hljs-theme.css";
+
+  // Create lowlight instance with common languages
+  // Includes: javascript, typescript, python, rust, go, html/xml, css,
+  //           json, yaml, bash, java, c, cpp, csharp, php, ruby,
+  //           swift, kotlin, sql, markdown, and more.
+  const lowlight = createLowlight(common);
 
   type Props = {
     content: string;
@@ -32,7 +43,7 @@
     const extensions: Extensions = [
       StarterKit.configure({
         heading: { levels: [1, 2, 3, 4, 5, 6] },
-        codeBlock: { HTMLAttributes: { class: "code-block" } },
+        codeBlock: false, // Replaced by CodeBlockLowlight
         code: { HTMLAttributes: { class: "inline-code" } },
         strike: {}, // ~~strikethrough~~
         blockquote: {}, // > quote
@@ -75,6 +86,11 @@
       Superscript,
       // Underline
       Underline,
+      // Code block with syntax highlighting
+      CodeBlockLowlight.configure({
+        lowlight,
+        HTMLAttributes: { class: "code-block" },
+      }),
       // Markdown serialization/deserialization
       Markdown.configure({
         html: true,

@@ -1,0 +1,173 @@
+/* ===================================================
+   Syntax Highlighting Theme for lowlight / highlight.js
+   Supports dark (default) and light themes.
+   =================================================== */
+
+/* ===== Dark Theme (default) ===== */
+
+/* Keywords: const, let, function, return, if, else, import, export ... */
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in,
+.hljs-name {
+  color: #c678dd;
+}
+
+/* Strings: "hello", 'world', `template` */
+.hljs-string,
+.hljs-addition {
+  color: #98c379;
+}
+
+/* Numbers, booleans */
+.hljs-number,
+.hljs-literal {
+  color: #d19a66;
+}
+
+/* Comments */
+.hljs-comment,
+.hljs-quote {
+  color: #5c6370;
+  font-style: italic;
+}
+
+/* Types, classes */
+.hljs-type,
+.hljs-class .hljs-title,
+.hljs-title {
+  color: #e5c07b;
+}
+
+/* Function names */
+.hljs-title.function_,
+.hljs-section {
+  color: #61afef;
+}
+
+/* Variables, params */
+.hljs-variable,
+.hljs-params,
+.hljs-template-variable {
+  color: #e06c75;
+}
+
+/* Attributes (HTML) */
+.hljs-attr,
+.hljs-attribute {
+  color: #d19a66;
+}
+
+/* Tags (HTML) */
+.hljs-tag {
+  color: #e06c75;
+}
+
+/* Regex, special */
+.hljs-regexp {
+  color: #56b6c2;
+}
+
+/* Meta, preprocessor */
+.hljs-meta,
+.hljs-meta .hljs-keyword {
+  color: #e06c75;
+}
+
+/* Symbols, bullets */
+.hljs-symbol,
+.hljs-bullet {
+  color: #61afef;
+}
+
+/* Deletions (diffs) */
+.hljs-deletion {
+  color: #e06c75;
+}
+
+/* Operators */
+.hljs-operator {
+  color: #56b6c2;
+}
+
+/* Punctuation */
+.hljs-punctuation {
+  color: #abb2bf;
+}
+
+/* ===== Light Theme ===== */
+
+:root[data-theme="light"] .hljs-keyword,
+:root[data-theme="light"] .hljs-selector-tag,
+:root[data-theme="light"] .hljs-built_in,
+:root[data-theme="light"] .hljs-name {
+  color: #a626a4;
+}
+
+:root[data-theme="light"] .hljs-string,
+:root[data-theme="light"] .hljs-addition {
+  color: #50a14f;
+}
+
+:root[data-theme="light"] .hljs-number,
+:root[data-theme="light"] .hljs-literal {
+  color: #986801;
+}
+
+:root[data-theme="light"] .hljs-comment,
+:root[data-theme="light"] .hljs-quote {
+  color: #a0a1a7;
+  font-style: italic;
+}
+
+:root[data-theme="light"] .hljs-type,
+:root[data-theme="light"] .hljs-class .hljs-title,
+:root[data-theme="light"] .hljs-title {
+  color: #c18401;
+}
+
+:root[data-theme="light"] .hljs-title.function_,
+:root[data-theme="light"] .hljs-section {
+  color: #4078f2;
+}
+
+:root[data-theme="light"] .hljs-variable,
+:root[data-theme="light"] .hljs-params,
+:root[data-theme="light"] .hljs-template-variable {
+  color: #e45649;
+}
+
+:root[data-theme="light"] .hljs-attr,
+:root[data-theme="light"] .hljs-attribute {
+  color: #986801;
+}
+
+:root[data-theme="light"] .hljs-tag {
+  color: #e45649;
+}
+
+:root[data-theme="light"] .hljs-regexp {
+  color: #0184bc;
+}
+
+:root[data-theme="light"] .hljs-meta,
+:root[data-theme="light"] .hljs-meta .hljs-keyword {
+  color: #e45649;
+}
+
+:root[data-theme="light"] .hljs-symbol,
+:root[data-theme="light"] .hljs-bullet {
+  color: #4078f2;
+}
+
+:root[data-theme="light"] .hljs-deletion {
+  color: #e45649;
+}
+
+:root[data-theme="light"] .hljs-operator {
+  color: #0184bc;
+}
+
+:root[data-theme="light"] .hljs-punctuation {
+  color: #383a42;
+}
