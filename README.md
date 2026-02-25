@@ -5,10 +5,13 @@ A hyper-lightweight, minimalist Markdown editor built for speed and focus. MD-Li
 ## 🚀 Features (MVP)
 The current version includes:
 - **WYSIWYG Markdown Editing**: Real-time formatting without the need for a separate preview pane.
-- **Native Experience**: Lightweight desktop application powered by Tauri.
+- **Native macOS Menu**: Full integration with the macOS menu bar for file operations.
+- **File Management**: Create, Open, Save, and Save As markdown files seamlessly.
+- **Open Recent**: Quickly jump back into your work with a dynamic "Open Recent" menu.
+- **Inline Renaming**: Rename your files directly from the title bar with a simple double-click.
 - **Rich Text Support**: Supports bold, italic, lists, task items, tables, and code blocks with syntax highlighting.
-- **Custom Title Bar**: Clean, distraction-free interface tailored for macOS.
-- **Keyboard Shortcuts**: Common editor shortcuts for lightning-fast editing.
+- **Custom Title Bar**: Clean, distraction-free interface tailored for macOS with traffic light support.
+- **Keyboard Shortcuts**: Common editor shortcuts (⌘N, ⌘O, ⌘S, ⌘⇧S) for lightning-fast editing.
 
 ## 🛠 Tech Stack
 - **Framework**: [Tauri v2](https://tauri.app/) (Rust-based backend)
