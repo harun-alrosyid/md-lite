@@ -5,20 +5,68 @@
     isSaving: boolean;
     theme: "dark" | "light";
     onToggleTheme: () => void;
+    onRename: (newName: string) => void;
   };
 
-  let { fileName, isDirty, isSaving, theme, onToggleTheme }: Props = $props();
+  let { fileName, isDirty, isSaving, theme, onToggleTheme, onRename }: Props =
+    $props();
+
+  // Inline rename state
+  let editing = $state(false);
+  let draft = $state("");
+
+  function startEditing() {
+    draft = fileName;
+    editing = true;
+  }
+
+  function commit() {
+    editing = false;
+    const trimmed = draft.trim();
+    if (!trimmed || trimmed === fileName) return;
+    const finalName = trimmed.endsWith(".md") ? trimmed : trimmed + ".md";
+    onRename(finalName);
+  }
+
+  function cancel() {
+    editing = false;
+  }
+
+  function handleRenameKey(e: KeyboardEvent) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commit();
+    } else if (e.key === "Escape") {
+      cancel();
+    }
+  }
 </script>
 
 <div class="titlebar" data-tauri-drag-region>
-  <!-- Left spacer for native macOS traffic lights -->
-  <div class="titlebar-traffic-spacer"></div>
+  <!-- Left: traffic spacer -->
+  <div class="titlebar-left">
+    <div class="titlebar-traffic-spacer"></div>
+  </div>
 
-  <!-- Centered title -->
+  <!-- Center: filename -->
   <div class="titlebar-center" data-tauri-drag-region>
-    <span class="titlebar-filename" data-tauri-drag-region>
-      {fileName || "Untitled"}
-    </span>
+    {#if editing}
+      <input
+        class="titlebar-input"
+        type="text"
+        bind:value={draft}
+        onkeydown={handleRenameKey}
+        onblur={commit}
+      />
+    {:else}
+      <button
+        class="titlebar-name-btn"
+        ondblclick={startEditing}
+        title="Double-click to rename"
+      >
+        {fileName || "Untitled"}
+      </button>
+    {/if}
     {#if isDirty}
       <span class="titlebar-dot" title="Unsaved changes"></span>
     {/if}
@@ -27,7 +75,7 @@
     {/if}
   </div>
 
-  <!-- Right actions -->
+  <!-- Right: theme toggle -->
   <div class="titlebar-actions">
     <button
       class="action-btn"
@@ -89,13 +137,19 @@
     gap: 8px;
   }
 
-  /* Space reserved for native macOS traffic light buttons */
+  .titlebar-left {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-shrink: 0;
+  }
+
   .titlebar-traffic-spacer {
     width: 70px;
     flex-shrink: 0;
   }
 
-  /* Centered Title */
+  /* --- Center title --- */
   .titlebar-center {
     flex: 1;
     display: flex;
@@ -105,13 +159,39 @@
     min-width: 0;
   }
 
-  .titlebar-filename {
+  .titlebar-name-btn {
     font-size: 13px;
     font-weight: 500;
     color: var(--color-text-secondary);
+    background: none;
+    border: none;
+    cursor: default;
+    padding: 2px 8px;
+    border-radius: 4px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    transition: background 0.15s ease;
+    -webkit-app-region: no-drag;
+  }
+
+  .titlebar-name-btn:hover {
+    background: var(--color-bg-elevated);
+  }
+
+  .titlebar-input {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-accent);
+    border-radius: 4px;
+    padding: 2px 8px;
+    outline: none;
+    text-align: center;
+    max-width: 240px;
+    font-family: var(--font-sans);
+    -webkit-app-region: no-drag;
   }
 
   .titlebar-dot {
@@ -139,7 +219,7 @@
     font-style: italic;
   }
 
-  /* Right Actions */
+  /* --- Right actions --- */
   .titlebar-actions {
     display: flex;
     align-items: center;
