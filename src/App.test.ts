@@ -2,20 +2,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import App from './App.svelte';
 
-// Track props passed to WysiwygEditor mock
 let capturedOnUpdate: ((markdown: string) => void) | null = null;
 
-// Mock child components
 vi.mock('./lib/TitleBar.svelte', () => ({
     default: vi.fn(),
 }));
 
-// WysiwygEditor mock captures the onUpdate prop
 vi.mock('./lib/WysiwygEditor.svelte', () => {
     return {
         default: function MockEditor(this: any, ...args: any[]) {
-            // Svelte 5 component receives anchor + props getter
-            // Try to capture onUpdate from props
             try {
                 const propsGetter = args[1];
                 if (typeof propsGetter === 'function') {
@@ -29,21 +24,35 @@ vi.mock('./lib/WysiwygEditor.svelte', () => {
     };
 });
 
-// Mock shortcuts module
 vi.mock('./lib/shortcuts', () => ({
     setupShortcuts: vi.fn(() => vi.fn()),
     openFileDialog: vi.fn(),
+    createNewFile: vi.fn(),
+    saveFileAs: vi.fn(),
+    renameFile: vi.fn(),
+    readFile: vi.fn(),
     saveFile: vi.fn(),
     closeWindow: vi.fn(),
+    updateRecentMenu: vi.fn(),
 }));
 
-// Mock app-logic module (re-export originals)
 vi.mock('./lib/app-logic', async () => {
     const actual = await vi.importActual('./lib/app-logic');
     return actual;
 });
 
-import { setupShortcuts, openFileDialog, saveFile, closeWindow } from './lib/shortcuts';
+vi.mock('@tauri-apps/api/event', () => ({
+    listen: vi.fn().mockResolvedValue(vi.fn()),
+}));
+
+import {
+    setupShortcuts,
+    openFileDialog,
+    createNewFile,
+    saveFileAs,
+    saveFile,
+    closeWindow,
+} from './lib/shortcuts';
 
 describe('App - Core', () => {
     beforeEach(() => {
@@ -73,20 +82,26 @@ describe('App - Core', () => {
         expect(screen.getByText('No file open')).toBeTruthy();
     });
 
-    it('displays keyboard shortcut hints', () => {
-        render(App);
-        expect(screen.getByText(/⌘O/)).toBeTruthy();
-        expect(screen.getByText(/⌘S/)).toBeTruthy();
-        expect(screen.getByText(/⌘W/)).toBeTruthy();
-        expect(screen.getByText(/⌘D/)).toBeTruthy();
+    it('displays shortcut hints in the shortcuts list', () => {
+        const { container } = render(App);
+        const shortcutRows = container.querySelectorAll('.shortcut-row');
+        expect(shortcutRows.length).toBeGreaterThanOrEqual(5);
     });
 
-    it('calls setupShortcuts on mount with handlers', () => {
+    it('displays New File and Open File action buttons', () => {
+        render(App);
+        expect(screen.getByText('New File')).toBeTruthy();
+        expect(screen.getByText('Open File')).toBeTruthy();
+    });
+
+    it('calls setupShortcuts on mount with all handlers', () => {
         render(App);
         expect(setupShortcuts).toHaveBeenCalledOnce();
         const call = vi.mocked(setupShortcuts).mock.calls[0][0];
+        expect(typeof call.onNew).toBe('function');
         expect(typeof call.onOpen).toBe('function');
         expect(typeof call.onSave).toBe('function');
+        expect(typeof call.onSaveAs).toBe('function');
         expect(typeof call.onClose).toBe('function');
         expect(typeof call.onToggleTheme).toBe('function');
     });
@@ -155,6 +170,22 @@ describe('App - File Operations', () => {
         vi.useRealTimers();
     });
 
+    it('creates new file successfully', async () => {
+        vi.mocked(createNewFile).mockResolvedValue('/test/untitled.md');
+        render(App);
+        const { onNew } = vi.mocked(setupShortcuts).mock.calls[0][0];
+        await onNew();
+        expect(createNewFile).toHaveBeenCalledOnce();
+    });
+
+    it('handles cancelled new file dialog', async () => {
+        vi.mocked(createNewFile).mockResolvedValue(null);
+        render(App);
+        const { onNew } = vi.mocked(setupShortcuts).mock.calls[0][0];
+        await onNew();
+        expect(createNewFile).toHaveBeenCalledOnce();
+    });
+
     it('opens file successfully', async () => {
         vi.mocked(openFileDialog).mockResolvedValue({
             path: '/home/user/doc.md',
@@ -166,7 +197,7 @@ describe('App - File Operations', () => {
         expect(openFileDialog).toHaveBeenCalledOnce();
     });
 
-    it('handles cancelled dialog', async () => {
+    it('handles cancelled open dialog', async () => {
         vi.mocked(openFileDialog).mockResolvedValue(null);
         render(App);
         const { onOpen } = vi.mocked(setupShortcuts).mock.calls[0][0];
@@ -204,6 +235,14 @@ describe('App - File Operations', () => {
         expect(saveFile).not.toHaveBeenCalled();
     });
 
+    it('save as opens dialog', async () => {
+        vi.mocked(saveFileAs).mockResolvedValue('/new/location.md');
+        render(App);
+        const { onSaveAs } = vi.mocked(setupShortcuts).mock.calls[0][0];
+        await onSaveAs();
+        expect(saveFileAs).toHaveBeenCalledOnce();
+    });
+
     it('closes window', async () => {
         vi.mocked(closeWindow).mockResolvedValue(undefined);
         render(App);
@@ -234,8 +273,7 @@ describe('App - Content Update & Auto-Save', () => {
         vi.useRealTimers();
     });
 
-    it('handleContentUpdate is called from WysiwygEditor onUpdate', async () => {
-        // Open a file first so filePath is set
+    it('auto-save triggers after content update', async () => {
         vi.mocked(openFileDialog).mockResolvedValue({
             path: '/test/file.md',
             content: '# Initial',
@@ -246,18 +284,14 @@ describe('App - Content Update & Auto-Save', () => {
         const { onOpen } = vi.mocked(setupShortcuts).mock.calls[0][0];
         await onOpen();
 
-        // If the mock captured onUpdate, call it and verify auto-save triggers
         if (capturedOnUpdate) {
-            capturedOnUpdate('# Updated content');
-
-            // Advance timers to trigger debounced auto-save
+            capturedOnUpdate('# Updated');
             await vi.advanceTimersByTimeAsync(1000);
-
-            expect(saveFile).toHaveBeenCalledWith('/test/file.md', '# Updated content');
+            expect(saveFile).toHaveBeenCalledWith('/test/file.md', '# Updated');
         }
     });
 
-    it('auto-save debounces multiple content updates', async () => {
+    it('auto-save debounces rapid updates', async () => {
         vi.mocked(openFileDialog).mockResolvedValue({
             path: '/test/file.md',
             content: '# Initial',
@@ -269,22 +303,21 @@ describe('App - Content Update & Auto-Save', () => {
         await onOpen();
 
         if (capturedOnUpdate) {
-            capturedOnUpdate('# First change');
+            capturedOnUpdate('# First');
             await vi.advanceTimersByTimeAsync(500);
-            capturedOnUpdate('# Second change');
+            capturedOnUpdate('# Second');
             await vi.advanceTimersByTimeAsync(1000);
 
-            // Only the last update should trigger save
             expect(saveFile).toHaveBeenCalledTimes(1);
-            expect(saveFile).toHaveBeenCalledWith('/test/file.md', '# Second change');
+            expect(saveFile).toHaveBeenCalledWith('/test/file.md', '# Second');
         }
     });
 
-    it('auto-save does not trigger without filePath', () => {
+    it('no auto-save without filePath', () => {
         render(App);
 
         if (capturedOnUpdate) {
-            capturedOnUpdate('# Some content');
+            capturedOnUpdate('# Content');
             vi.advanceTimersByTime(2000);
             expect(saveFile).not.toHaveBeenCalled();
         }
@@ -304,7 +337,6 @@ describe('App - Content Update & Auto-Save', () => {
 
         if (capturedOnUpdate) {
             capturedOnUpdate('# Changed');
-            // Close before auto-save fires
             await onClose();
             expect(saveFile).toHaveBeenCalledWith('/test/file.md', '# Changed');
             expect(closeWindow).toHaveBeenCalled();
@@ -323,13 +355,13 @@ describe('App - Content Update & Auto-Save', () => {
         await onOpen();
 
         if (capturedOnUpdate) {
-            capturedOnUpdate('# Manual save test');
+            capturedOnUpdate('# Manual');
             await onSave();
-            expect(saveFile).toHaveBeenCalledWith('/test/file.md', '# Manual save test');
+            expect(saveFile).toHaveBeenCalledWith('/test/file.md', '# Manual');
         }
     });
 
-    it('save error is handled gracefully', async () => {
+    it('handles save error gracefully', async () => {
         const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
         vi.mocked(openFileDialog).mockResolvedValue({
             path: '/test/file.md',
@@ -342,7 +374,7 @@ describe('App - Content Update & Auto-Save', () => {
         await onOpen();
 
         if (capturedOnUpdate) {
-            capturedOnUpdate('# Will fail');
+            capturedOnUpdate('# Fail');
             await onSave();
             expect(consoleSpy).toHaveBeenCalledWith('Save failed:', expect.any(Error));
         }
