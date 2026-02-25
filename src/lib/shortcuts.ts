@@ -1,13 +1,19 @@
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 export interface ShortcutHandlers {
+    onNew: () => void;
     onOpen: () => void;
     onSave: () => void;
+    onSaveAs: () => void;
     onClose: () => void;
     onToggleTheme: () => void;
 }
+
+const MD_FILTERS = [
+    { name: "Markdown", extensions: ["md", "markdown"] },
+];
 
 /**
  * Open a .md file via native dialog, returns { path, content } or null
@@ -18,12 +24,7 @@ export async function openFileDialog(): Promise<{
 } | null> {
     const selected = await open({
         multiple: false,
-        filters: [
-            {
-                name: "Markdown",
-                extensions: ["md", "markdown", "txt"],
-            },
-        ],
+        filters: MD_FILTERS,
     });
 
     if (!selected) return null;
@@ -34,10 +35,72 @@ export async function openFileDialog(): Promise<{
 }
 
 /**
+ * Create a new .md file — opens a save dialog, writes an empty file
+ */
+export async function createNewFile(): Promise<string | null> {
+    const path = await save({
+        filters: MD_FILTERS,
+        defaultPath: "untitled.md",
+    });
+
+    if (!path) return null;
+
+    await invoke("save_file", { path, content: "" });
+    return path;
+}
+
+/**
+ * Save As — pick a new destination for existing content
+ */
+export async function saveFileAs(
+    content: string,
+    currentName?: string,
+): Promise<string | null> {
+    const path = await save({
+        filters: MD_FILTERS,
+        defaultPath: currentName || "untitled.md",
+    });
+
+    if (!path) return null;
+
+    await invoke("save_file", { path, content });
+    return path;
+}
+
+/**
  * Save content to a file path via Rust async I/O
  */
 export async function saveFile(path: string, content: string): Promise<void> {
     await invoke("save_file", { path, content });
+}
+
+/**
+ * Rename a file on disk and return the new full path
+ */
+export async function renameFile(
+    oldPath: string,
+    newName: string,
+): Promise<string> {
+    const parts = oldPath.split("/");
+    parts[parts.length - 1] = newName;
+    const newPath = parts.join("/");
+
+    await invoke("rename_file", { oldPath, newPath });
+    return newPath;
+}
+
+/**
+ * Read a file by path (for opening recent files)
+ */
+export async function readFile(path: string): Promise<string> {
+    return invoke("read_file", { path });
+}
+
+/**
+ * Update native recent menu
+ */
+export async function updateRecentMenu(paths: string[], names: string[]): Promise<void> {
+    await invoke("update_recent_menu", { paths, names });
 }
 
 /**
@@ -50,8 +113,10 @@ export async function closeWindow(): Promise<void> {
 
 /**
  * Keyboard shortcuts:
+ * Cmd/Ctrl + N: New file
  * Cmd/Ctrl + O: Open file
  * Cmd/Ctrl + S: Save
+ * Cmd/Ctrl + Shift + S: Save As
  * Cmd/Ctrl + W: Close
  * Cmd/Ctrl + D: Toggle dark/light theme
  */
@@ -61,13 +126,21 @@ export function setupShortcuts(handlers: ShortcutHandlers): () => void {
         if (!mod) return;
 
         switch (e.key.toLowerCase()) {
+            case "n":
+                e.preventDefault();
+                handlers.onNew();
+                break;
             case "o":
                 e.preventDefault();
                 handlers.onOpen();
                 break;
             case "s":
                 e.preventDefault();
-                handlers.onSave();
+                if (e.shiftKey) {
+                    handlers.onSaveAs();
+                } else {
+                    handlers.onSave();
+                }
                 break;
             case "w":
                 e.preventDefault();
