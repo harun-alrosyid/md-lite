@@ -1,15 +1,28 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
+  import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import TitleBar from "./lib/TitleBar.svelte";
   import WysiwygEditor from "./lib/WysiwygEditor.svelte";
-  import { setupShortcuts, openFileDialog, closeWindow } from "./lib/shortcuts";
   import {
-    createInitialState,
+    setupShortcuts,
+    openFileDialog,
+    createNewFile,
+    saveFileAs,
+    renameFile,
+    readFile,
+    closeWindow,
+    updateRecentMenu,
+  } from "./lib/shortcuts";
+  import {
     deriveFileName,
     toggleTheme as toggleThemeLogic,
     performSave,
     handleContentUpdate as handleContentUpdateLogic,
     scheduleAutoSave,
+    getRecentFiles,
+    addRecentFile,
+    removeRecentFile,
+    type RecentFile,
   } from "./lib/app-logic";
 
   // State
@@ -20,11 +33,25 @@
   let theme: "dark" | "light" = $state("dark");
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
   let cleanupShortcuts: (() => void) | null = null;
+  let recentFiles: RecentFile[] = $state([]);
+  let unlistenMenu: UnlistenFn[] = [];
 
   // Derived
   let fileName = $derived(deriveFileName(filePath));
 
-  // Theme management
+  async function refreshRecents() {
+    recentFiles = getRecentFiles();
+
+    const paths = recentFiles.map((r) => r.path);
+    const names = recentFiles.map((r) => r.name);
+    try {
+      await updateRecentMenu(paths, names);
+    } catch (err) {
+      console.error("Failed to update native recent files menu", err);
+    }
+  }
+
+  // Theme
   function toggleTheme() {
     const result = toggleThemeLogic({
       content,
@@ -39,7 +66,7 @@
     localStorage.setItem("md-lite-theme", theme);
   }
 
-  // Auto-save wrapper
+  // Save helpers
   async function doPerformSave() {
     const state = { content, filePath, isDirty, isSaving, theme, saveTimer };
     const result = await performSave(state);
@@ -47,7 +74,6 @@
     isSaving = result.isSaving;
   }
 
-  // Auto-save: debounced 1000ms
   function doScheduleAutoSave() {
     const state = { content, filePath, isDirty, isSaving, theme, saveTimer };
     const result = scheduleAutoSave(state, doPerformSave);
@@ -62,23 +88,102 @@
     doScheduleAutoSave();
   }
 
+  // --- Handlers ---
+
+  async function handleNew() {
+    try {
+      const path = await createNewFile();
+      if (!path) return;
+
+      if (saveTimer) clearTimeout(saveTimer);
+      filePath = path;
+      content = "";
+      isDirty = false;
+      addRecentFile(path);
+      refreshRecents();
+    } catch (err) {
+      console.error("New file failed:", err);
+    }
+  }
+
   async function handleOpen() {
     try {
       const result = await openFileDialog();
-      if (result) {
-        if (saveTimer) clearTimeout(saveTimer);
-        filePath = result.path;
-        content = result.content;
-        isDirty = false;
-      }
+      if (!result) return;
+
+      if (saveTimer) clearTimeout(saveTimer);
+      filePath = result.path;
+      content = result.content;
+      isDirty = false;
+      addRecentFile(result.path);
+      refreshRecents();
     } catch (err) {
       console.error("Open failed:", err);
     }
   }
 
+  async function handleOpenRecent(path: string) {
+    try {
+      const fileContent = await readFile(path);
+      if (saveTimer) clearTimeout(saveTimer);
+      filePath = path;
+      content = fileContent;
+      isDirty = false;
+      addRecentFile(path);
+      refreshRecents();
+    } catch (err) {
+      console.error("Open recent failed:", err);
+      removeRecentFile(path);
+      refreshRecents();
+    }
+  }
+
   async function handleSave() {
     if (saveTimer) clearTimeout(saveTimer);
+
+    // no path yet → prompt where to save
+    if (!filePath && content) {
+      const path = await saveFileAs(content);
+      if (path) {
+        filePath = path;
+        isDirty = false;
+        addRecentFile(path);
+        refreshRecents();
+      }
+      return;
+    }
+
     await doPerformSave();
+  }
+
+  async function handleSaveAs() {
+    try {
+      const name = deriveFileName(filePath);
+      const path = await saveFileAs(content, name);
+      if (!path) return;
+
+      filePath = path;
+      isDirty = false;
+      addRecentFile(path);
+      refreshRecents();
+    } catch (err) {
+      console.error("Save As failed:", err);
+    }
+  }
+
+  async function handleRename(newName: string) {
+    if (!filePath) return;
+
+    try {
+      const newPath = await renameFile(filePath, newName);
+      const oldPath = filePath;
+      filePath = newPath;
+      removeRecentFile(oldPath);
+      addRecentFile(newPath);
+      refreshRecents();
+    } catch (err) {
+      console.error("Rename failed:", err);
+    }
   }
 
   async function handleClose() {
@@ -87,7 +192,6 @@
   }
 
   onMount(() => {
-    // Load saved theme preference
     const saved = localStorage.getItem("md-lite-theme") as
       | "dark"
       | "light"
@@ -97,21 +201,41 @@
       document.documentElement.setAttribute("data-theme", theme);
     }
 
+    refreshRecents();
+
     cleanupShortcuts = setupShortcuts({
+      onNew: handleNew,
       onOpen: handleOpen,
       onSave: handleSave,
+      onSaveAs: handleSaveAs,
       onClose: handleClose,
       onToggleTheme: toggleTheme,
     });
+
+    listen("menu-new-file", handleNew).then((f) => unlistenMenu.push(f));
+    listen("menu-open-file", handleOpen).then((f) => unlistenMenu.push(f));
+    listen("menu-save-file", handleSave).then((f) => unlistenMenu.push(f));
+    listen("menu-save-as", handleSaveAs).then((f) => unlistenMenu.push(f));
+    listen("open-recent", (evt: any) => handleOpenRecent(evt.payload)).then(
+      (f) => unlistenMenu.push(f),
+    );
   });
 
   onDestroy(() => {
     cleanupShortcuts?.();
+    unlistenMenu.forEach((u) => u());
     if (saveTimer) clearTimeout(saveTimer);
   });
 </script>
 
-<TitleBar {fileName} {isDirty} {isSaving} {theme} onToggleTheme={toggleTheme} />
+<TitleBar
+  {fileName}
+  {isDirty}
+  {isSaving}
+  {theme}
+  onToggleTheme={toggleTheme}
+  onRename={handleRename}
+/>
 
 <main class="main-content">
   <WysiwygEditor {content} onUpdate={handleContentUpdate} />
@@ -138,16 +262,77 @@
           <polyline points="10 9 9 9 8 9" />
         </svg>
       </div>
+
       <p class="empty-title">No file open</p>
-      <p class="empty-hint">Press <kbd>⌘O</kbd> to open a file</p>
+
+      <div class="empty-actions">
+        <button class="action-pill" onclick={handleNew}>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          New File
+          <kbd>⌘N</kbd>
+        </button>
+        <button class="action-pill" onclick={handleOpen}>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+            />
+          </svg>
+          Open File
+          <kbd>⌘O</kbd>
+        </button>
+      </div>
+
+      {#if recentFiles.length > 0}
+        <div class="recent-section">
+          <p class="recent-heading">Recent</p>
+          <ul class="recent-list">
+            {#each recentFiles as file}
+              <li>
+                <button
+                  class="recent-item"
+                  onclick={() => handleOpenRecent(file.path)}
+                >
+                  <span class="recent-name">{file.name}</span>
+                  <span class="recent-folder">{file.folder}</span>
+                </button>
+              </li>
+            {/each}
+          </ul>
+        </div>
+      {/if}
+
       <div class="shortcuts-list">
+        <div class="shortcut-row"><kbd>⌘N</kbd><span>New file</span></div>
+        <div class="shortcut-row"><kbd>⌘O</kbd><span>Open file</span></div>
+        <div class="shortcut-row"><kbd>⌘S</kbd><span>Save</span></div>
+        <div class="shortcut-row"><kbd>⌘⇧S</kbd><span>Save As</span></div>
         <div class="shortcut-row">
           <kbd>⌘1-6</kbd><span>Set heading level</span>
         </div>
         <div class="shortcut-row">
           <kbd>⌘D</kbd><span>Toggle dark/light</span>
         </div>
-        <div class="shortcut-row"><kbd>⌘S</kbd><span>Save</span></div>
         <div class="shortcut-row"><kbd>⌘W</kbd><span>Close</span></div>
       </div>
     </div>
@@ -175,28 +360,119 @@
     z-index: 10;
   }
 
+  .empty-state > * {
+    pointer-events: auto;
+  }
+
   .empty-icon {
     color: var(--color-text-muted);
     opacity: 0.4;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
+    pointer-events: none;
   }
 
   .empty-title {
     font-size: 18px;
     font-weight: 500;
     color: var(--color-text-muted);
+    pointer-events: none;
   }
 
-  .empty-hint {
-    font-size: 13px;
-    color: var(--color-text-muted);
+  /* Action pills (New / Open) */
+  .empty-actions {
     display: flex;
+    gap: 10px;
+    margin-top: 8px;
+  }
+
+  .action-pill {
+    display: inline-flex;
     align-items: center;
     gap: 6px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: var(--font-sans);
+    color: var(--color-text-secondary);
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
   }
 
-  .shortcuts-list {
+  .action-pill:hover {
+    background: var(--color-accent);
+    color: #fff;
+    border-color: var(--color-accent);
+  }
+
+  .action-pill kbd {
+    font-size: 10px;
+    opacity: 0.6;
+  }
+
+  /* Recent files */
+  .recent-section {
     margin-top: 16px;
+    width: 260px;
+  }
+
+  .recent-heading {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+    margin-bottom: 6px;
+  }
+
+  .recent-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .recent-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 6px 10px;
+    font-size: 13px;
+    font-family: var(--font-sans);
+    color: var(--color-text-secondary);
+    background: none;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.12s ease;
+  }
+
+  .recent-item:hover {
+    background: var(--color-bg-elevated);
+    color: var(--color-text-primary);
+  }
+
+  .recent-name {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .recent-folder {
+    font-size: 11px;
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+    margin-left: 12px;
+  }
+
+  /* Shortcuts */
+  .shortcuts-list {
+    margin-top: 20px;
     display: flex;
     flex-direction: column;
     gap: 8px;
