@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -15,8 +15,10 @@ describe('setupShortcuts', () => {
 
     beforeEach(() => {
         handlers = {
+            onNew: vi.fn(),
             onOpen: vi.fn(),
             onSave: vi.fn(),
+            onSaveAs: vi.fn(),
             onClose: vi.fn(),
             onToggleTheme: vi.fn(),
         };
@@ -34,6 +36,13 @@ describe('setupShortcuts', () => {
         return event;
     }
 
+    it('calls onNew on Cmd+N', () => {
+        const cleanup = setupShortcuts(handlers);
+        dispatchKey('n');
+        expect(handlers.onNew).toHaveBeenCalledOnce();
+        cleanup();
+    });
+
     it('calls onOpen on Cmd+O', () => {
         const cleanup = setupShortcuts(handlers);
         dispatchKey('o');
@@ -45,6 +54,14 @@ describe('setupShortcuts', () => {
         const cleanup = setupShortcuts(handlers);
         dispatchKey('s');
         expect(handlers.onSave).toHaveBeenCalledOnce();
+        cleanup();
+    });
+
+    it('calls onSaveAs on Cmd+Shift+S', () => {
+        const cleanup = setupShortcuts(handlers);
+        dispatchKey('s', { shiftKey: true });
+        expect(handlers.onSaveAs).toHaveBeenCalledOnce();
+        expect(handlers.onSave).not.toHaveBeenCalled();
         cleanup();
     });
 
@@ -136,7 +153,7 @@ describe('openFileDialog', () => {
             filters: [
                 {
                     name: 'Markdown',
-                    extensions: ['md', 'markdown', 'txt'],
+                    extensions: ['md', 'markdown'],
                 },
             ],
         });
