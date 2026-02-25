@@ -13,7 +13,8 @@
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
     "types": [
-      "svelte"
+      "svelte",
+      "vitest/globals"
     ]
   },
   "include": [
