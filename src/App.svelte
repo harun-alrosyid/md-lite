@@ -2,12 +2,15 @@
   import { onMount, onDestroy } from "svelte";
   import TitleBar from "./lib/TitleBar.svelte";
   import WysiwygEditor from "./lib/WysiwygEditor.svelte";
+  import { setupShortcuts, openFileDialog, closeWindow } from "./lib/shortcuts";
   import {
-    setupShortcuts,
-    openFileDialog,
-    saveFile,
-    closeWindow,
-  } from "./lib/shortcuts";
+    createInitialState,
+    deriveFileName,
+    toggleTheme as toggleThemeLogic,
+    performSave,
+    handleContentUpdate as handleContentUpdateLogic,
+    scheduleAutoSave,
+  } from "./lib/app-logic";
 
   // State
   let content: string = $state("");
@@ -19,43 +22,44 @@
   let cleanupShortcuts: (() => void) | null = null;
 
   // Derived
-  let fileName = $derived(
-    filePath ? filePath.split("/").pop() || "Untitled" : "Untitled",
-  );
+  let fileName = $derived(deriveFileName(filePath));
 
   // Theme management
   function toggleTheme() {
-    theme = theme === "dark" ? "light" : "dark";
+    const result = toggleThemeLogic({
+      content,
+      filePath,
+      isDirty,
+      isSaving,
+      theme,
+      saveTimer,
+    });
+    theme = result.theme;
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("md-lite-theme", theme);
   }
 
-  // Auto-save: debounced 1000ms
-  function scheduleAutoSave() {
-    if (saveTimer) clearTimeout(saveTimer);
-    if (!filePath) return;
-    saveTimer = setTimeout(async () => {
-      await performSave();
-    }, 1000);
+  // Auto-save wrapper
+  async function doPerformSave() {
+    const state = { content, filePath, isDirty, isSaving, theme, saveTimer };
+    const result = await performSave(state);
+    isDirty = result.isDirty;
+    isSaving = result.isSaving;
   }
 
-  async function performSave() {
-    if (!filePath || !isDirty) return;
-    isSaving = true;
-    try {
-      await saveFile(filePath, content);
-      isDirty = false;
-    } catch (err) {
-      console.error("Save failed:", err);
-    } finally {
-      isSaving = false;
-    }
+  // Auto-save: debounced 1000ms
+  function doScheduleAutoSave() {
+    const state = { content, filePath, isDirty, isSaving, theme, saveTimer };
+    const result = scheduleAutoSave(state, doPerformSave);
+    saveTimer = result.saveTimer;
   }
 
   function handleContentUpdate(markdown: string) {
-    content = markdown;
-    isDirty = true;
-    scheduleAutoSave();
+    const state = { content, filePath, isDirty, isSaving, theme, saveTimer };
+    const result = handleContentUpdateLogic(state, markdown);
+    content = result.content;
+    isDirty = result.isDirty;
+    doScheduleAutoSave();
   }
 
   async function handleOpen() {
@@ -74,11 +78,11 @@
 
   async function handleSave() {
     if (saveTimer) clearTimeout(saveTimer);
-    await performSave();
+    await doPerformSave();
   }
 
   async function handleClose() {
-    if (isDirty && filePath) await performSave();
+    if (isDirty && filePath) await doPerformSave();
     await closeWindow();
   }
 
