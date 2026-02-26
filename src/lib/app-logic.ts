@@ -61,6 +61,22 @@ export function scheduleAutoSave(
     return { ...state, saveTimer: timer };
 }
 
+/**
+ * Schedule a shadow save with a 3-second debounce.
+ * Uses a separate timer from the main auto-save.
+ */
+export function scheduleShadowSave(
+    currentTimer: ReturnType<typeof setTimeout> | null,
+    filePath: string,
+    doShadow: () => Promise<void>,
+    delay: number = 3000,
+): ReturnType<typeof setTimeout> | null {
+    if (currentTimer) clearTimeout(currentTimer);
+    if (!filePath) return null;
+
+    return setTimeout(doShadow, delay);
+}
+
 // --- Recent files (localStorage) ---
 
 const RECENT_KEY = "md-lite-recent";
