@@ -1,6 +1,5 @@
 <script lang="ts">
     import type { Editor } from "@tiptap/core";
-    import { onMount } from "svelte";
 
     interface Props {
         editor: Editor | null;
@@ -10,19 +9,16 @@
 
     let { editor, visible, onClose }: Props = $props();
 
-    let findInput: HTMLInputElement;
-    let replaceInput: HTMLInputElement;
+    let findInput: HTMLInputElement | undefined = $state(undefined);
+    let replaceInput: HTMLInputElement | undefined = $state(undefined);
     let searchTerm: string = $state("");
     let replaceTerm: string = $state("");
     let caseSensitive: boolean = $state(false);
 
-    // Reactive getters from editor storage
-    let resultCount = $derived(
-        editor?.storage?.searchReplace?.results?.length ?? 0,
-    );
-    let currentIndex = $derived(
-        editor?.storage?.searchReplace?.currentIndex ?? -1,
-    );
+    // Local reactive state — updated after every command
+    let resultCount: number = $state(0);
+    let currentIndex: number = $state(-1);
+
     let displayIndex = $derived(
         resultCount > 0 && currentIndex >= 0 ? currentIndex + 1 : 0,
     );
@@ -30,55 +26,75 @@
     // Auto-focus when visible
     $effect(() => {
         if (visible && findInput) {
-            // Small delay to let the animation start
             requestAnimationFrame(() => findInput?.focus());
         }
     });
 
-    // Sync search term to editor
-    $effect(() => {
-        if (editor && visible) {
-            (editor.commands as any).setSearchTerm(searchTerm);
-        }
-    });
+    /** Read back search results from editor storage into local reactive state */
+    function syncResults() {
+        if (!editor) return;
+        const s = editor.storage?.searchReplace;
+        resultCount = s?.results?.length ?? 0;
+        currentIndex = s?.currentIndex ?? -1;
+    }
 
-    // Sync replace term to editor
-    $effect(() => {
-        if (editor && visible) {
-            (editor.commands as any).setReplaceTerm(replaceTerm);
+    function doSearch(term: string) {
+        if (!editor) return;
+        editor.commands.setSearchTerm(term);
+        syncResults();
+    }
+
+    function handleFindInput() {
+        doSearch(searchTerm);
+    }
+
+    function handleReplaceInput() {
+        if (editor) {
+            editor.commands.setReplaceTerm(replaceTerm);
         }
-    });
+    }
 
     function toggleCaseSensitive() {
         caseSensitive = !caseSensitive;
         if (editor) {
-            (editor.commands as any).setCaseSensitive(caseSensitive);
+            editor.commands.setCaseSensitive(caseSensitive);
+            syncResults();
         }
     }
 
     function goNext() {
-        if (editor) (editor.commands as any).goToNextMatch();
+        if (!editor) return;
+        editor.commands.goToNextMatch();
+        syncResults();
     }
 
     function goPrev() {
-        if (editor) (editor.commands as any).goToPreviousMatch();
+        if (!editor) return;
+        editor.commands.goToPreviousMatch();
+        syncResults();
     }
 
     function replaceCurrent() {
-        if (editor) (editor.commands as any).replaceCurrentMatch();
+        if (!editor) return;
+        editor.commands.replaceCurrentMatch();
+        // Re-sync after the setTimeout in the command
+        setTimeout(() => syncResults(), 10);
     }
 
     function replaceAll() {
-        if (editor) (editor.commands as any).replaceAllMatches();
+        if (!editor) return;
+        editor.commands.replaceAllMatches();
+        setTimeout(() => syncResults(), 10);
     }
 
     function handleClose() {
-        if (editor) (editor.commands as any).clearSearch();
+        if (editor) editor.commands.clearSearch();
         searchTerm = "";
         replaceTerm = "";
         caseSensitive = false;
+        resultCount = 0;
+        currentIndex = -1;
         onClose();
-        // Return focus to editor
         editor?.commands.focus();
     }
 
@@ -108,10 +124,7 @@
         } else if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             replaceCurrent();
-        } else if (e.key === "Tab" && e.shiftKey) {
-            e.preventDefault();
-            findInput?.focus();
-        } else if (e.key === "Tab" && !e.shiftKey) {
+        } else if (e.key === "Tab") {
             e.preventDefault();
             findInput?.focus();
         }
@@ -125,6 +138,7 @@
                 <input
                     bind:this={findInput}
                     bind:value={searchTerm}
+                    oninput={handleFindInput}
                     onkeydown={handleFindKeydown}
                     class="search-input"
                     placeholder="Find…"
@@ -215,6 +229,7 @@
             <input
                 bind:this={replaceInput}
                 bind:value={replaceTerm}
+                oninput={handleReplaceInput}
                 onkeydown={handleReplaceKeydown}
                 class="search-input"
                 placeholder="Replace…"
