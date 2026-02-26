@@ -3,6 +3,7 @@
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import TitleBar from "./lib/TitleBar.svelte";
   import WysiwygEditor from "./lib/WysiwygEditor.svelte";
+  import StatusBar from "./lib/StatusBar.svelte";
   import {
     setupShortcuts,
     openFileDialog,
@@ -12,6 +13,11 @@
     readFile,
     closeWindow,
     updateRecentMenu,
+    shadowSave,
+    checkShadowRecovery,
+    restoreShadow,
+    dismissShadow,
+    type ShadowRecovery,
   } from "./lib/shortcuts";
   import {
     deriveFileName,
@@ -19,11 +25,14 @@
     performSave,
     handleContentUpdate as handleContentUpdateLogic,
     scheduleAutoSave,
+    scheduleShadowSave,
     getRecentFiles,
     addRecentFile,
     removeRecentFile,
     type RecentFile,
   } from "./lib/app-logic";
+  import type { TelemetryResult } from "./lib/telemetry.worker";
+  import TelemetryWorker from "./lib/telemetry.worker?worker";
 
   // State
   let content: string = $state("");
@@ -35,6 +44,18 @@
   let cleanupShortcuts: (() => void) | null = null;
   let recentFiles: RecentFile[] = $state([]);
   let unlistenMenu: UnlistenFn[] = [];
+
+  // Shadow save state
+  let shadowTimer: ReturnType<typeof setTimeout> | null = null;
+  let recoveryData: ShadowRecovery | null = $state(null);
+
+  // Telemetry state
+  let telemetryWorker: Worker | null = null;
+  let telemetry: TelemetryResult = $state({
+    words: 0,
+    characters: 0,
+    readingTimeMinutes: 0,
+  });
 
   // Derived
   let fileName = $derived(deriveFileName(filePath));
@@ -80,12 +101,28 @@
     saveTimer = result.saveTimer;
   }
 
+  function doScheduleShadowSave() {
+    shadowTimer = scheduleShadowSave(shadowTimer, filePath, async () => {
+      try {
+        await shadowSave(filePath, content);
+      } catch (err) {
+        console.error("Shadow save failed:", err);
+      }
+    });
+  }
+
+  function updateTelemetry(text: string) {
+    telemetryWorker?.postMessage({ text });
+  }
+
   function handleContentUpdate(markdown: string) {
     const state = { content, filePath, isDirty, isSaving, theme, saveTimer };
     const result = handleContentUpdateLogic(state, markdown);
     content = result.content;
     isDirty = result.isDirty;
     doScheduleAutoSave();
+    doScheduleShadowSave();
+    updateTelemetry(markdown);
   }
 
   // --- Handlers ---
@@ -96,11 +133,14 @@
       if (!path) return;
 
       if (saveTimer) clearTimeout(saveTimer);
+      if (shadowTimer) clearTimeout(shadowTimer);
       filePath = path;
       content = "";
       isDirty = false;
       addRecentFile(path);
       refreshRecents();
+      dismissShadow().catch(() => {});
+      updateTelemetry("");
     } catch (err) {
       console.error("New file failed:", err);
     }
@@ -112,11 +152,14 @@
       if (!result) return;
 
       if (saveTimer) clearTimeout(saveTimer);
+      if (shadowTimer) clearTimeout(shadowTimer);
       filePath = result.path;
       content = result.content;
       isDirty = false;
       addRecentFile(result.path);
       refreshRecents();
+      dismissShadow().catch(() => {});
+      updateTelemetry(result.content);
     } catch (err) {
       console.error("Open failed:", err);
     }
@@ -126,11 +169,14 @@
     try {
       const fileContent = await readFile(path);
       if (saveTimer) clearTimeout(saveTimer);
+      if (shadowTimer) clearTimeout(shadowTimer);
       filePath = path;
       content = fileContent;
       isDirty = false;
       addRecentFile(path);
       refreshRecents();
+      dismissShadow().catch(() => {});
+      updateTelemetry(fileContent);
     } catch (err) {
       console.error("Open recent failed:", err);
       removeRecentFile(path);
@@ -140,6 +186,7 @@
 
   async function handleSave() {
     if (saveTimer) clearTimeout(saveTimer);
+    if (shadowTimer) clearTimeout(shadowTimer);
 
     // no path yet → prompt where to save
     if (!filePath && content) {
@@ -149,11 +196,13 @@
         isDirty = false;
         addRecentFile(path);
         refreshRecents();
+        dismissShadow().catch(() => {});
       }
       return;
     }
 
     await doPerformSave();
+    dismissShadow().catch(() => {});
   }
 
   async function handleSaveAs() {
@@ -191,7 +240,36 @@
     await closeWindow();
   }
 
-  onMount(() => {
+  // --- Recovery handlers ---
+
+  async function handleRestore() {
+    if (!recoveryData) return;
+    try {
+      filePath = recoveryData.original_path;
+      content = recoveryData.shadow_content;
+      isDirty = true;
+      recoveryData = null;
+      await dismissShadow();
+      updateTelemetry(content);
+      if (filePath) {
+        addRecentFile(filePath);
+        refreshRecents();
+      }
+    } catch (err) {
+      console.error("Restore failed:", err);
+    }
+  }
+
+  async function handleDismiss() {
+    recoveryData = null;
+    try {
+      await dismissShadow();
+    } catch (err) {
+      console.error("Dismiss failed:", err);
+    }
+  }
+
+  onMount(async () => {
     const saved = localStorage.getItem("md-lite-theme") as
       | "dark"
       | "light"
@@ -202,6 +280,22 @@
     }
 
     refreshRecents();
+
+    // Initialize telemetry Web Worker
+    telemetryWorker = new TelemetryWorker();
+    telemetryWorker.onmessage = (event: MessageEvent<TelemetryResult>) => {
+      telemetry = event.data;
+    };
+
+    // Check for crash recovery
+    try {
+      const recovery = await checkShadowRecovery();
+      if (recovery) {
+        recoveryData = recovery;
+      }
+    } catch (err) {
+      console.error("Recovery check failed:", err);
+    }
 
     cleanupShortcuts = setupShortcuts({
       onNew: handleNew,
@@ -225,6 +319,8 @@
     cleanupShortcuts?.();
     unlistenMenu.forEach((u) => u());
     if (saveTimer) clearTimeout(saveTimer);
+    if (shadowTimer) clearTimeout(shadowTimer);
+    telemetryWorker?.terminate();
   });
 </script>
 
@@ -236,6 +332,40 @@
   onToggleTheme={toggleTheme}
   onRename={handleRename}
 />
+
+{#if recoveryData}
+  <div class="recovery-banner" id="recovery-banner">
+    <div class="recovery-content">
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="8" x2="12" y2="12" />
+        <line x1="12" y1="16" x2="12.01" y2="16" />
+      </svg>
+      <span class="recovery-text">
+        Unsaved session detected{recoveryData.original_path
+          ? ` from ${deriveFileName(recoveryData.original_path)}`
+          : ""}
+      </span>
+    </div>
+    <div class="recovery-actions">
+      <button class="recovery-btn restore" onclick={handleRestore}
+        >Restore</button
+      >
+      <button class="recovery-btn dismiss" onclick={handleDismiss}
+        >Dismiss</button
+      >
+    </div>
+  </div>
+{/if}
 
 <main class="main-content">
   <WysiwygEditor {content} onUpdate={handleContentUpdate} />
@@ -339,7 +469,88 @@
   {/if}
 </main>
 
+<StatusBar
+  words={telemetry.words}
+  characters={telemetry.characters}
+  readingTimeMinutes={telemetry.readingTimeMinutes}
+/>
+
 <style>
+  /* Recovery banner */
+  .recovery-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background: color-mix(
+      in srgb,
+      var(--color-warning) 12%,
+      var(--color-bg-secondary)
+    );
+    border-bottom: 1px solid
+      color-mix(in srgb, var(--color-warning) 25%, var(--color-border));
+    flex-shrink: 0;
+    animation: slideDown 0.25s ease-out;
+  }
+
+  @keyframes slideDown {
+    from {
+      transform: translateY(-100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .recovery-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--color-warning);
+  }
+
+  .recovery-text {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+  }
+
+  .recovery-actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  .recovery-btn {
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: var(--font-sans);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .recovery-btn.restore {
+    background: var(--color-accent);
+    color: #fff;
+  }
+
+  .recovery-btn.restore:hover {
+    background: var(--color-accent-hover);
+  }
+
+  .recovery-btn.dismiss {
+    background: var(--color-bg-elevated);
+    color: var(--color-text-secondary);
+  }
+
+  .recovery-btn.dismiss:hover {
+    background: var(--color-border);
+  }
+
   .main-content {
     flex: 1;
     display: flex;
