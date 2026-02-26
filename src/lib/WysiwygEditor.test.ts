@@ -48,8 +48,24 @@ vi.mock('@tiptap/core', () => {
                 }
             }
         },
+        Extension: {
+            create: vi.fn(() => ({})),
+        },
     };
 });
+
+vi.mock('@tiptap/pm/state', () => ({
+    Plugin: vi.fn(),
+    PluginKey: vi.fn(),
+    TextSelection: { near: vi.fn() },
+}));
+
+vi.mock('@tiptap/pm/view', () => ({
+    Decoration: { inline: vi.fn() },
+    DecorationSet: { create: vi.fn(), empty: {} },
+}));
+
+vi.mock('@tiptap/pm/model', () => ({}));
 
 vi.mock('@tiptap/starter-kit', () => ({
     default: { configure: vi.fn(() => ({})) },
