@@ -9,6 +9,7 @@ export interface ShortcutHandlers {
     onSaveAs: () => void;
     onClose: () => void;
     onToggleTheme: () => void;
+    onFind: () => void;
 }
 
 const MD_FILTERS = [
@@ -185,6 +186,10 @@ export function setupShortcuts(handlers: ShortcutHandlers): () => void {
             case "d":
                 e.preventDefault();
                 handlers.onToggleTheme();
+                break;
+            case "f":
+                e.preventDefault();
+                handlers.onFind();
                 break;
         }
     };
