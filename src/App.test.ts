@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
+import { tick } from 'svelte';
 import App from './App.svelte';
 
 let capturedOnUpdate: ((markdown: string) => void) | null = null;
@@ -34,6 +35,10 @@ vi.mock('./lib/shortcuts', () => ({
     saveFile: vi.fn(),
     closeWindow: vi.fn(),
     updateRecentMenu: vi.fn(),
+    shadowSave: vi.fn().mockResolvedValue(undefined),
+    checkShadowRecovery: vi.fn().mockResolvedValue(null),
+    restoreShadow: vi.fn().mockResolvedValue(''),
+    dismissShadow: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('./lib/app-logic', async () => {
@@ -44,6 +49,16 @@ vi.mock('./lib/app-logic', async () => {
 vi.mock('@tauri-apps/api/event', () => ({
     listen: vi.fn().mockResolvedValue(vi.fn()),
 }));
+
+// Mock the Web Worker import
+vi.mock('./lib/telemetry.worker?worker', () => {
+    class MockWorker {
+        postMessage = vi.fn();
+        onmessage: any = null;
+        terminate = vi.fn();
+    }
+    return { default: MockWorker };
+});
 
 import {
     setupShortcuts,
@@ -67,35 +82,42 @@ describe('App - Core', () => {
         vi.useRealTimers();
     });
 
-    it('renders main content area', () => {
-        const { container } = render(App);
+    async function renderAndFlush() {
+        const result = render(App);
+        await vi.advanceTimersByTimeAsync(0);
+        await tick();
+        return result;
+    }
+
+    it('renders main content area', async () => {
+        const { container } = await renderAndFlush();
         expect(container.querySelector('.main-content')).toBeTruthy();
     });
 
-    it('shows empty state when no file is open', () => {
-        const { container } = render(App);
+    it('shows empty state when no file is open', async () => {
+        const { container } = await renderAndFlush();
         expect(container.querySelector('.empty-state')).toBeTruthy();
     });
 
-    it('displays "No file open" message', () => {
-        render(App);
+    it('displays "No file open" message', async () => {
+        await renderAndFlush();
         expect(screen.getByText('No file open')).toBeTruthy();
     });
 
-    it('displays shortcut hints in the shortcuts list', () => {
-        const { container } = render(App);
+    it('displays shortcut hints in the shortcuts list', async () => {
+        const { container } = await renderAndFlush();
         const shortcutRows = container.querySelectorAll('.shortcut-row');
         expect(shortcutRows.length).toBeGreaterThanOrEqual(5);
     });
 
-    it('displays New File and Open File action buttons', () => {
-        render(App);
+    it('displays New File and Open File action buttons', async () => {
+        await renderAndFlush();
         expect(screen.getByText('New File')).toBeTruthy();
         expect(screen.getByText('Open File')).toBeTruthy();
     });
 
-    it('calls setupShortcuts on mount with all handlers', () => {
-        render(App);
+    it('calls setupShortcuts on mount with all handlers', async () => {
+        await renderAndFlush();
         expect(setupShortcuts).toHaveBeenCalledOnce();
         const call = vi.mocked(setupShortcuts).mock.calls[0][0];
         expect(typeof call.onNew).toBe('function');
@@ -106,10 +128,10 @@ describe('App - Core', () => {
         expect(typeof call.onToggleTheme).toBe('function');
     });
 
-    it('cleanup function is called on unmount', () => {
+    it('cleanup function is called on unmount', async () => {
         const cleanupFn = vi.fn();
         vi.mocked(setupShortcuts).mockReturnValue(cleanupFn);
-        const { unmount } = render(App);
+        const { unmount } = await renderAndFlush();
         unmount();
         expect(cleanupFn).toHaveBeenCalled();
     });
@@ -127,30 +149,37 @@ describe('App - Theme', () => {
         vi.useRealTimers();
     });
 
-    it('loads saved theme from localStorage', () => {
+    async function renderAndFlush() {
+        const result = render(App);
+        await vi.advanceTimersByTimeAsync(0);
+        await tick();
+        return result;
+    }
+
+    it('loads saved theme from localStorage', async () => {
         localStorage.setItem('md-lite-theme', 'light');
-        render(App);
+        await renderAndFlush();
         expect(document.documentElement.getAttribute('data-theme')).toBe('light');
     });
 
-    it('toggleTheme: dark → light', () => {
-        render(App);
+    it('toggleTheme: dark → light', async () => {
+        await renderAndFlush();
         const { onToggleTheme } = vi.mocked(setupShortcuts).mock.calls[0][0];
         onToggleTheme();
         expect(document.documentElement.getAttribute('data-theme')).toBe('light');
         expect(localStorage.getItem('md-lite-theme')).toBe('light');
     });
 
-    it('toggleTheme: light → dark', () => {
+    it('toggleTheme: light → dark', async () => {
         localStorage.setItem('md-lite-theme', 'light');
-        render(App);
+        await renderAndFlush();
         const { onToggleTheme } = vi.mocked(setupShortcuts).mock.calls[0][0];
         onToggleTheme();
         expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     });
 
-    it('toggleTheme round-trip', () => {
-        render(App);
+    it('toggleTheme round-trip', async () => {
+        await renderAndFlush();
         const { onToggleTheme } = vi.mocked(setupShortcuts).mock.calls[0][0];
         onToggleTheme();
         onToggleTheme();
@@ -170,9 +199,16 @@ describe('App - File Operations', () => {
         vi.useRealTimers();
     });
 
+    async function renderAndFlush() {
+        const result = render(App);
+        await vi.advanceTimersByTimeAsync(0);
+        await tick();
+        return result;
+    }
+
     it('creates new file successfully', async () => {
         vi.mocked(createNewFile).mockResolvedValue('/test/untitled.md');
-        render(App);
+        await renderAndFlush();
         const { onNew } = vi.mocked(setupShortcuts).mock.calls[0][0];
         await onNew();
         expect(createNewFile).toHaveBeenCalledOnce();
@@ -180,7 +216,7 @@ describe('App - File Operations', () => {
 
     it('handles cancelled new file dialog', async () => {
         vi.mocked(createNewFile).mockResolvedValue(null);
-        render(App);
+        await renderAndFlush();
         const { onNew } = vi.mocked(setupShortcuts).mock.calls[0][0];
         await onNew();
         expect(createNewFile).toHaveBeenCalledOnce();
@@ -191,7 +227,7 @@ describe('App - File Operations', () => {
             path: '/home/user/doc.md',
             content: '# Hello',
         });
-        render(App);
+        await renderAndFlush();
         const { onOpen } = vi.mocked(setupShortcuts).mock.calls[0][0];
         await onOpen();
         expect(openFileDialog).toHaveBeenCalledOnce();
@@ -199,7 +235,7 @@ describe('App - File Operations', () => {
 
     it('handles cancelled open dialog', async () => {
         vi.mocked(openFileDialog).mockResolvedValue(null);
-        render(App);
+        await renderAndFlush();
         const { onOpen } = vi.mocked(setupShortcuts).mock.calls[0][0];
         await onOpen();
         expect(openFileDialog).toHaveBeenCalledOnce();
@@ -208,7 +244,7 @@ describe('App - File Operations', () => {
     it('handles open error gracefully', async () => {
         const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
         vi.mocked(openFileDialog).mockRejectedValue(new Error('error'));
-        render(App);
+        await renderAndFlush();
         const { onOpen } = vi.mocked(setupShortcuts).mock.calls[0][0];
         await onOpen();
         expect(consoleSpy).toHaveBeenCalledWith('Open failed:', expect.any(Error));
@@ -216,7 +252,7 @@ describe('App - File Operations', () => {
     });
 
     it('does not save when no file is open', async () => {
-        render(App);
+        await renderAndFlush();
         const { onSave } = vi.mocked(setupShortcuts).mock.calls[0][0];
         await onSave();
         expect(saveFile).not.toHaveBeenCalled();
@@ -228,7 +264,7 @@ describe('App - File Operations', () => {
             content: '# Test',
         });
         vi.mocked(saveFile).mockResolvedValue(undefined);
-        render(App);
+        await renderAndFlush();
         const { onOpen, onSave } = vi.mocked(setupShortcuts).mock.calls[0][0];
         await onOpen();
         await onSave();
@@ -237,7 +273,7 @@ describe('App - File Operations', () => {
 
     it('save as opens dialog', async () => {
         vi.mocked(saveFileAs).mockResolvedValue('/new/location.md');
-        render(App);
+        await renderAndFlush();
         const { onSaveAs } = vi.mocked(setupShortcuts).mock.calls[0][0];
         await onSaveAs();
         expect(saveFileAs).toHaveBeenCalledOnce();
@@ -245,7 +281,7 @@ describe('App - File Operations', () => {
 
     it('closes window', async () => {
         vi.mocked(closeWindow).mockResolvedValue(undefined);
-        render(App);
+        await renderAndFlush();
         const { onClose } = vi.mocked(setupShortcuts).mock.calls[0][0];
         await onClose();
         expect(closeWindow).toHaveBeenCalledOnce();
@@ -253,7 +289,7 @@ describe('App - File Operations', () => {
 
     it('does not save before close when not dirty', async () => {
         vi.mocked(closeWindow).mockResolvedValue(undefined);
-        render(App);
+        await renderAndFlush();
         const { onClose } = vi.mocked(setupShortcuts).mock.calls[0][0];
         await onClose();
         expect(saveFile).not.toHaveBeenCalled();
@@ -273,6 +309,13 @@ describe('App - Content Update & Auto-Save', () => {
         vi.useRealTimers();
     });
 
+    async function renderAndFlush() {
+        const result = render(App);
+        await vi.advanceTimersByTimeAsync(0);
+        await tick();
+        return result;
+    }
+
     it('auto-save triggers after content update', async () => {
         vi.mocked(openFileDialog).mockResolvedValue({
             path: '/test/file.md',
@@ -280,7 +323,7 @@ describe('App - Content Update & Auto-Save', () => {
         });
         vi.mocked(saveFile).mockResolvedValue(undefined);
 
-        render(App);
+        await renderAndFlush();
         const { onOpen } = vi.mocked(setupShortcuts).mock.calls[0][0];
         await onOpen();
 
@@ -298,7 +341,7 @@ describe('App - Content Update & Auto-Save', () => {
         });
         vi.mocked(saveFile).mockResolvedValue(undefined);
 
-        render(App);
+        await renderAndFlush();
         const { onOpen } = vi.mocked(setupShortcuts).mock.calls[0][0];
         await onOpen();
 
@@ -313,8 +356,8 @@ describe('App - Content Update & Auto-Save', () => {
         }
     });
 
-    it('no auto-save without filePath', () => {
-        render(App);
+    it('no auto-save without filePath', async () => {
+        await renderAndFlush();
 
         if (capturedOnUpdate) {
             capturedOnUpdate('# Content');
@@ -331,7 +374,7 @@ describe('App - Content Update & Auto-Save', () => {
         vi.mocked(saveFile).mockResolvedValue(undefined);
         vi.mocked(closeWindow).mockResolvedValue(undefined);
 
-        render(App);
+        await renderAndFlush();
         const { onOpen, onClose } = vi.mocked(setupShortcuts).mock.calls[0][0];
         await onOpen();
 
@@ -350,7 +393,7 @@ describe('App - Content Update & Auto-Save', () => {
         });
         vi.mocked(saveFile).mockResolvedValue(undefined);
 
-        render(App);
+        await renderAndFlush();
         const { onOpen, onSave } = vi.mocked(setupShortcuts).mock.calls[0][0];
         await onOpen();
 
@@ -369,7 +412,7 @@ describe('App - Content Update & Auto-Save', () => {
         });
         vi.mocked(saveFile).mockRejectedValue(new Error('disk error'));
 
-        render(App);
+        await renderAndFlush();
         const { onOpen, onSave } = vi.mocked(setupShortcuts).mock.calls[0][0];
         await onOpen();
 
