@@ -4,6 +4,7 @@
   import TitleBar from "./lib/TitleBar.svelte";
   import WysiwygEditor from "./lib/WysiwygEditor.svelte";
   import StatusBar from "./lib/StatusBar.svelte";
+  import SearchBar from "./lib/SearchBar.svelte";
   import {
     setupShortcuts,
     openFileDialog,
@@ -56,6 +57,10 @@
     characters: 0,
     readingTimeMinutes: 0,
   });
+
+  // Search state
+  let showSearchBar: boolean = $state(false);
+  let editorRef: import("@tiptap/core").Editor | null = $state(null);
 
   // Derived
   let fileName = $derived(deriveFileName(filePath));
@@ -304,6 +309,9 @@
       onSaveAs: handleSaveAs,
       onClose: handleClose,
       onToggleTheme: toggleTheme,
+      onFind: () => {
+        showSearchBar = !showSearchBar;
+      },
     });
 
     listen("menu-new-file", handleNew).then((f) => unlistenMenu.push(f));
@@ -368,7 +376,16 @@
 {/if}
 
 <main class="main-content">
-  <WysiwygEditor {content} onUpdate={handleContentUpdate} />
+  <SearchBar
+    editor={editorRef}
+    visible={showSearchBar}
+    onClose={() => (showSearchBar = false)}
+  />
+  <WysiwygEditor
+    {content}
+    onUpdate={handleContentUpdate}
+    onEditorReady={(e) => (editorRef = e)}
+  />
 
   {#if !filePath && content === ""}
     <div class="empty-state">
