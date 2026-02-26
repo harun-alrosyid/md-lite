@@ -23,6 +23,7 @@
     "fs:default",
     "fs:allow-read",
     "fs:allow-write",
-    "fs:allow-exists"
+    "fs:allow-exists",
+    "fs:allow-rename"
   ]
 }
