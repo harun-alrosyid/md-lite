@@ -9,6 +9,7 @@ describe('TitleBar', () => {
         isSaving: false,
         theme: 'dark' as const,
         onToggleTheme: vi.fn(),
+        onRename: vi.fn(),
     };
 
     it('displays the file name', () => {
