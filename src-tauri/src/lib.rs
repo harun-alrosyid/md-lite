@@ -1,6 +1,8 @@
 mod commands;
+mod shadow;
 
 use commands::{read_file, rename_file, save_file, update_recent_menu};
+use shadow::{check_shadow_recovery, dismiss_shadow, restore_shadow, shadow_save};
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
     Emitter, Manager,
@@ -15,7 +17,11 @@ pub fn run() {
             read_file,
             save_file,
             rename_file,
-            update_recent_menu
+            update_recent_menu,
+            shadow_save,
+            check_shadow_recovery,
+            restore_shadow,
+            dismiss_shadow
         ])
         .setup(|app| {
             // Build the standard macOS App menu (MD Lite, Edit, Window, etc.)
