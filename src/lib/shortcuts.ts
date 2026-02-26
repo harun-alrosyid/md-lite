@@ -103,6 +103,42 @@ export async function updateRecentMenu(paths: string[], names: string[]): Promis
     await invoke("update_recent_menu", { paths, names });
 }
 
+// --- Shadow Save / Crash Recovery ---
+
+export interface ShadowRecovery {
+    original_path: string;
+    shadow_content: string;
+    shadow_modified: number;
+}
+
+/**
+ * Write content to shadow buffer (atomic, async)
+ */
+export async function shadowSave(path: string, content: string): Promise<void> {
+    await invoke("shadow_save", { path, content });
+}
+
+/**
+ * Check if a shadow recovery file exists on startup
+ */
+export async function checkShadowRecovery(): Promise<ShadowRecovery | null> {
+    return invoke("check_shadow_recovery");
+}
+
+/**
+ * Restore shadow buffer to the target file and return the content
+ */
+export async function restoreShadow(targetPath: string): Promise<string> {
+    return invoke("restore_shadow", { targetPath });
+}
+
+/**
+ * Dismiss shadow recovery without restoring
+ */
+export async function dismissShadow(): Promise<void> {
+    await invoke("dismiss_shadow");
+}
+
 /**
  * Close the current window
  */
