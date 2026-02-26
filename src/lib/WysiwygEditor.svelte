@@ -19,6 +19,7 @@
   import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
   import { common, createLowlight } from "lowlight";
   import { Markdown } from "tiptap-markdown";
+  import { SearchReplace } from "./search-replace";
 
   // Import syntax highlighting theme
   import "./hljs-theme.css";
@@ -32,9 +33,10 @@
   type Props = {
     content: string;
     onUpdate: (markdown: string) => void;
+    onEditorReady?: (editor: Editor) => void;
   };
 
-  let { content, onUpdate }: Props = $props();
+  let { content, onUpdate, onEditorReady }: Props = $props();
   let element: HTMLDivElement;
   let editor: Editor | null = null;
   let isSettingContent = false;
@@ -92,6 +94,8 @@
         HTMLAttributes: { class: "code-block" },
       }),
       // Markdown serialization/deserialization
+      // Search & Replace
+      SearchReplace,
       Markdown.configure({
         html: true,
         tightLists: true,
@@ -125,6 +129,8 @@
     if (content) {
       setContent(content);
     }
+
+    onEditorReady?.(editor);
   });
 
   onDestroy(() => {
@@ -461,6 +467,29 @@
 
   /* ===== Selection ===== */
   .editor-mount :global(::selection) {
+    background: rgba(10, 132, 255, 0.3);
+  }
+
+  /* ===== Search highlights ===== */
+  .editor-mount :global(.search-match) {
+    background: rgba(255, 214, 10, 0.3);
+    border-radius: 2px;
+  }
+
+  :global(:root[data-theme="light"]) .editor-mount :global(.search-match) {
+    background: rgba(255, 214, 10, 0.45);
+  }
+
+  .editor-mount :global(.search-match-current) {
+    background: rgba(10, 132, 255, 0.4);
+    outline: 2px solid var(--color-accent);
+    outline-offset: -1px;
+    border-radius: 2px;
+  }
+
+  :global(:root[data-theme="light"])
+    .editor-mount
+    :global(.search-match-current) {
     background: rgba(10, 132, 255, 0.3);
   }
 </style>
