@@ -6,6 +6,7 @@
   import StatusBar from "./lib/StatusBar.svelte";
   import SearchBar from "./lib/SearchBar.svelte";
   import CommandPalette from "./lib/CommandPalette.svelte";
+  import ShortcutConfigModal from "./lib/ShortcutConfigModal.svelte";
   import type { CommandHandlers } from "./lib/commands";
   import {
     setupShortcuts,
@@ -22,6 +23,8 @@
     dismissShadow,
     type ShadowRecovery,
   } from "./lib/shortcuts";
+  import { loadShortcuts, formatShortcutForDisplay } from "./lib/shortcutStore";
+  import { isTauri } from "./lib/env";
   import {
     deriveFileName,
     toggleTheme as toggleThemeLogic,
@@ -70,6 +73,10 @@
   // Command palette state
   let showCommandPalette: boolean = $state(false);
 
+  // Custom Shortcuts modal
+  let showShortcutModal: boolean = $state(false);
+  let currentShortcuts = $state(loadShortcuts());
+
   // Derived
   let fileName = $derived(deriveFileName(filePath));
 
@@ -86,6 +93,13 @@
       localStorage.setItem("md-lite-focus", String(focusMode));
     },
     onGoHome: handleGoHome,
+    onCommandPalette: () => {
+      showCommandPalette = true;
+    },
+    onOpenShortcutConfig: () => {
+      showCommandPalette = false;
+      showShortcutModal = true;
+    },
     onFind: () => {
       showCommandPalette = false;
       showSearchBar = !showSearchBar;
@@ -336,6 +350,12 @@
     }
   }
 
+  function reloadShortcuts() {
+    currentShortcuts = loadShortcuts();
+    cleanupShortcuts?.();
+    cleanupShortcuts = setupShortcuts(commandHandlers);
+  }
+
   onMount(async () => {
     const saved = localStorage.getItem("md-lite-theme") as
       | "dark"
@@ -370,33 +390,17 @@
       console.error("Recovery check failed:", err);
     }
 
-    cleanupShortcuts = setupShortcuts({
-      onNew: handleNew,
-      onOpen: handleOpen,
-      onSave: handleSave,
-      onSaveAs: handleSaveAs,
-      onClose: handleClose,
-      onToggleTheme: toggleTheme,
-      onFind: () => {
-        showSearchBar = !showSearchBar;
-      },
-      onToggleFocusMode: () => {
-        focusMode = !focusMode;
-        localStorage.setItem("md-lite-focus", String(focusMode));
-      },
-      onCommandPalette: () => {
-        showCommandPalette = !showCommandPalette;
-      },
-      onGoHome: handleGoHome,
-    });
+    reloadShortcuts();
 
-    listen("menu-new-file", handleNew).then((f) => unlistenMenu.push(f));
-    listen("menu-open-file", handleOpen).then((f) => unlistenMenu.push(f));
-    listen("menu-save-file", handleSave).then((f) => unlistenMenu.push(f));
-    listen("menu-save-as", handleSaveAs).then((f) => unlistenMenu.push(f));
-    listen("open-recent", (evt: any) => handleOpenRecent(evt.payload)).then(
-      (f) => unlistenMenu.push(f),
-    );
+    if (isTauri) {
+      listen("menu-new-file", handleNew)?.then((f) => unlistenMenu?.push(f));
+      listen("menu-open-file", handleOpen)?.then((f) => unlistenMenu?.push(f));
+      listen("menu-save-file", handleSave)?.then((f) => unlistenMenu?.push(f));
+      listen("menu-save-as", handleSaveAs)?.then((f) => unlistenMenu?.push(f));
+      listen("open-recent", (evt: any) => handleOpenRecent(evt.payload))?.then(
+        (f) => unlistenMenu?.push(f),
+      );
+    }
   });
 
   onDestroy(() => {
@@ -505,7 +509,7 @@
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
           New File
-          <kbd>⌘N</kbd>
+          <kbd>{formatShortcutForDisplay(currentShortcuts.onNew)}</kbd>
         </button>
         <button class="action-pill" onclick={handleOpen}>
           <svg
@@ -523,7 +527,7 @@
             />
           </svg>
           Open File
-          <kbd>⌘O</kbd>
+          <kbd>{formatShortcutForDisplay(currentShortcuts.onOpen)}</kbd>
         </button>
       </div>
 
@@ -547,23 +551,48 @@
       {/if}
 
       <div class="shortcuts-list">
-        <div class="shortcut-row"><kbd>⌘N</kbd><span>New file</span></div>
-        <div class="shortcut-row"><kbd>⌘O</kbd><span>Open file</span></div>
-        <div class="shortcut-row"><kbd>⌘S</kbd><span>Save</span></div>
-        <div class="shortcut-row"><kbd>⌘⇧S</kbd><span>Save As</span></div>
+        <div class="shortcut-row">
+          <kbd>{formatShortcutForDisplay(currentShortcuts.onNew)}</kbd><span
+            >New file</span
+          >
+        </div>
+        <div class="shortcut-row">
+          <kbd>{formatShortcutForDisplay(currentShortcuts.onOpen)}</kbd><span
+            >Open file</span
+          >
+        </div>
+        <div class="shortcut-row">
+          <kbd>{formatShortcutForDisplay(currentShortcuts.onSave)}</kbd><span
+            >Save</span
+          >
+        </div>
+        <div class="shortcut-row">
+          <kbd>{formatShortcutForDisplay(currentShortcuts.onSaveAs)}</kbd><span
+            >Save As</span
+          >
+        </div>
         <div class="shortcut-row">
           <kbd>⌘1-6</kbd><span>Set heading level</span>
         </div>
         <div class="shortcut-row">
-          <kbd>⌘D</kbd><span>Toggle dark/light</span>
+          <kbd>{formatShortcutForDisplay(currentShortcuts.onToggleTheme)}</kbd
+          ><span>Toggle dark/light</span>
         </div>
         <div class="shortcut-row">
-          <kbd>⌘⇧F</kbd><span>Focus mode</span>
+          <kbd
+            >{formatShortcutForDisplay(currentShortcuts.onToggleFocusMode)}</kbd
+          ><span>Focus mode</span>
         </div>
         <div class="shortcut-row">
-          <kbd>⌘K</kbd><span>Command palette</span>
+          <kbd
+            >{formatShortcutForDisplay(currentShortcuts.onCommandPalette)}</kbd
+          ><span>Command palette</span>
         </div>
-        <div class="shortcut-row"><kbd>⌘W</kbd><span>Close</span></div>
+        <div class="shortcut-row">
+          <kbd>{formatShortcutForDisplay(currentShortcuts.onClose)}</kbd><span
+            >Close</span
+          >
+        </div>
       </div>
     </div>
   {/if}
@@ -579,7 +608,14 @@
 <CommandPalette
   visible={showCommandPalette}
   handlers={commandHandlers}
+  config={currentShortcuts}
   onClose={() => (showCommandPalette = false)}
+/>
+
+<ShortcutConfigModal
+  visible={showShortcutModal}
+  onClose={() => (showShortcutModal = false)}
+  onSave={reloadShortcuts}
 />
 
 <style>
