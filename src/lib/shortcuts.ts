@@ -10,6 +10,9 @@ export interface ShortcutHandlers {
     onClose: () => void;
     onToggleTheme: () => void;
     onFind: () => void;
+    onToggleFocusMode: () => void;
+    onCommandPalette: () => void;
+    onGoHome: () => void;
 }
 
 const MD_FILTERS = [
@@ -188,8 +191,21 @@ export function setupShortcuts(handlers: ShortcutHandlers): () => void {
                 handlers.onToggleTheme();
                 break;
             case "f":
+                if (e.shiftKey) {
+                    e.preventDefault();
+                    handlers.onToggleFocusMode();
+                } else {
+                    e.preventDefault();
+                    handlers.onFind();
+                }
+                break;
+            case "k":
                 e.preventDefault();
-                handlers.onFind();
+                handlers.onCommandPalette();
+                break;
+            case "q":
+                e.preventDefault();
+                handlers.onGoHome();
                 break;
         }
     };
