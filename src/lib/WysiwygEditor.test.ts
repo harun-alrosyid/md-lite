@@ -14,6 +14,7 @@ const mockEditorInstance = {
     commands: {
         setContent: vi.fn(),
         focus: vi.fn(),
+        setFocusMode: vi.fn(),
     },
     chain: vi.fn(() => mockChain),
     isActive: vi.fn(() => false),
@@ -24,6 +25,7 @@ const mockEditorInstance = {
     },
     destroy: vi.fn(),
     on: vi.fn(),
+    off: vi.fn(),
 };
 
 let capturedOnUpdate: any = null;
