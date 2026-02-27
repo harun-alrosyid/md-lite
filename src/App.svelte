@@ -5,6 +5,8 @@
   import WysiwygEditor from "./lib/WysiwygEditor.svelte";
   import StatusBar from "./lib/StatusBar.svelte";
   import SearchBar from "./lib/SearchBar.svelte";
+  import CommandPalette from "./lib/CommandPalette.svelte";
+  import type { CommandHandlers } from "./lib/commands";
   import {
     setupShortcuts,
     openFileDialog,
@@ -62,8 +64,57 @@
   let showSearchBar: boolean = $state(false);
   let editorRef: import("@tiptap/core").Editor | null = $state(null);
 
+  // Focus mode state (combined focus + typewriter)
+  let focusMode: boolean = $state(false);
+
+  // Command palette state
+  let showCommandPalette: boolean = $state(false);
+
   // Derived
   let fileName = $derived(deriveFileName(filePath));
+
+  // Command palette handlers
+  let commandHandlers: CommandHandlers = $derived({
+    onNew: handleNew,
+    onOpen: handleOpen,
+    onSave: handleSave,
+    onSaveAs: handleSaveAs,
+    onClose: handleClose,
+    onToggleTheme: toggleTheme,
+    onToggleFocusMode: () => {
+      focusMode = !focusMode;
+      localStorage.setItem("md-lite-focus", String(focusMode));
+    },
+    onGoHome: handleGoHome,
+    onFind: () => {
+      showCommandPalette = false;
+      showSearchBar = !showSearchBar;
+    },
+    onSetHeading: (level: number) => {
+      if (!editorRef) return;
+      const l = level as 1 | 2 | 3 | 4 | 5 | 6;
+      if (editorRef.isActive("heading", { level: l })) {
+        editorRef.chain().focus().setParagraph().run();
+      } else {
+        editorRef.chain().focus().setHeading({ level: l }).run();
+      }
+    },
+    onSetParagraph: () => editorRef?.chain().focus().setParagraph().run(),
+    onToggleBold: () => editorRef?.chain().focus().toggleBold().run(),
+    onToggleItalic: () => editorRef?.chain().focus().toggleItalic().run(),
+    onToggleStrikethrough: () =>
+      editorRef?.chain().focus().toggleStrike().run(),
+    onToggleBlockquote: () =>
+      editorRef?.chain().focus().toggleBlockquote().run(),
+    onToggleBulletList: () =>
+      editorRef?.chain().focus().toggleBulletList().run(),
+    onToggleOrderedList: () =>
+      editorRef?.chain().focus().toggleOrderedList().run(),
+    onToggleCodeBlock: () => editorRef?.chain().focus().toggleCodeBlock().run(),
+    onInsertHorizontalRule: () =>
+      editorRef?.chain().focus().setHorizontalRule().run(),
+    onToggleHighlight: () => editorRef?.chain().focus().toggleHighlight().run(),
+  });
 
   async function refreshRecents() {
     recentFiles = getRecentFiles();
@@ -245,6 +296,17 @@
     await closeWindow();
   }
 
+  async function handleGoHome() {
+    if (isDirty && filePath) {
+      await doPerformSave();
+    }
+    filePath = "";
+    content = "";
+    isDirty = false;
+    dismissShadow().catch(() => {});
+    updateTelemetry("");
+  }
+
   // --- Recovery handlers ---
 
   async function handleRestore() {
@@ -284,6 +346,12 @@
       document.documentElement.setAttribute("data-theme", theme);
     }
 
+    // Load focus mode preference
+    const savedFocus = localStorage.getItem("md-lite-focus");
+    if (savedFocus === "true") {
+      focusMode = true;
+    }
+
     refreshRecents();
 
     // Initialize telemetry Web Worker
@@ -312,6 +380,14 @@
       onFind: () => {
         showSearchBar = !showSearchBar;
       },
+      onToggleFocusMode: () => {
+        focusMode = !focusMode;
+        localStorage.setItem("md-lite-focus", String(focusMode));
+      },
+      onCommandPalette: () => {
+        showCommandPalette = !showCommandPalette;
+      },
+      onGoHome: handleGoHome,
     });
 
     listen("menu-new-file", handleNew).then((f) => unlistenMenu.push(f));
@@ -383,6 +459,7 @@
   />
   <WysiwygEditor
     {content}
+    {focusMode}
     onUpdate={handleContentUpdate}
     onEditorReady={(e) => (editorRef = e)}
   />
@@ -480,6 +557,12 @@
         <div class="shortcut-row">
           <kbd>⌘D</kbd><span>Toggle dark/light</span>
         </div>
+        <div class="shortcut-row">
+          <kbd>⌘⇧F</kbd><span>Focus mode</span>
+        </div>
+        <div class="shortcut-row">
+          <kbd>⌘K</kbd><span>Command palette</span>
+        </div>
         <div class="shortcut-row"><kbd>⌘W</kbd><span>Close</span></div>
       </div>
     </div>
@@ -490,6 +573,13 @@
   words={telemetry.words}
   characters={telemetry.characters}
   readingTimeMinutes={telemetry.readingTimeMinutes}
+  {focusMode}
+/>
+
+<CommandPalette
+  visible={showCommandPalette}
+  handlers={commandHandlers}
+  onClose={() => (showCommandPalette = false)}
 />
 
 <style>
