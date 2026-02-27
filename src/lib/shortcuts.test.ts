@@ -10,6 +10,10 @@ import {
     type ShortcutHandlers,
 } from './shortcuts';
 
+vi.mock('./env', () => ({
+    isTauri: true,
+}));
+
 describe('setupShortcuts', () => {
     let handlers: ShortcutHandlers;
 
@@ -21,6 +25,10 @@ describe('setupShortcuts', () => {
             onSaveAs: vi.fn(),
             onClose: vi.fn(),
             onToggleTheme: vi.fn(),
+            onFind: vi.fn(),
+            onToggleFocusMode: vi.fn(),
+            onCommandPalette: vi.fn(),
+            onGoHome: vi.fn(),
         };
     });
 
@@ -36,9 +44,9 @@ describe('setupShortcuts', () => {
         return event;
     }
 
-    it('calls onNew on Cmd+N', () => {
+    it('calls onNew on Cmd+Shift+N', () => {
         const cleanup = setupShortcuts(handlers);
-        dispatchKey('n');
+        dispatchKey('n', { shiftKey: true });
         expect(handlers.onNew).toHaveBeenCalledOnce();
         cleanup();
     });
@@ -65,9 +73,9 @@ describe('setupShortcuts', () => {
         cleanup();
     });
 
-    it('calls onClose on Cmd+W', () => {
+    it('calls onClose on Cmd+Shift+Q', () => {
         const cleanup = setupShortcuts(handlers);
-        dispatchKey('w');
+        dispatchKey('q', { shiftKey: true });
         expect(handlers.onClose).toHaveBeenCalledOnce();
         cleanup();
     });
