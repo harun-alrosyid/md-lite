@@ -64,7 +64,6 @@ body {
   display: flex;
   flex-direction: column;
   background: var(--color-bg-primary);
-  border-radius: 10px;
   overflow: hidden;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
