@@ -20,6 +20,7 @@
   import { common, createLowlight } from "lowlight";
   import { Markdown } from "tiptap-markdown";
   import { SearchReplace } from "./search-replace";
+  import { FocusMode } from "./focus-mode";
 
   // Import syntax highlighting theme
   import "./hljs-theme.css";
@@ -32,12 +33,14 @@
 
   type Props = {
     content: string;
+    focusMode?: boolean;
     onUpdate: (markdown: string) => void;
     onEditorReady?: (editor: Editor) => void;
   };
 
-  let { content, onUpdate, onEditorReady }: Props = $props();
+  let { content, focusMode = false, onUpdate, onEditorReady }: Props = $props();
   let element: HTMLDivElement;
+  let wrapperEl: HTMLDivElement;
   let editor: Editor | null = null;
   let isSettingContent = false;
 
@@ -96,6 +99,8 @@
       // Markdown serialization/deserialization
       // Search & Replace
       SearchReplace,
+      // Focus Mode (dim non-active blocks)
+      FocusMode,
       Markdown.configure({
         html: true,
         tightLists: true,
@@ -133,6 +138,26 @@
     onEditorReady?.(editor);
   });
 
+  // Typewriter scroll: keep cursor vertically centered
+  function scrollCursorToCenter() {
+    if (!editor || !wrapperEl || !focusMode) return;
+
+    try {
+      const { from } = editor.state.selection;
+      const coords = editor.view.coordsAtPos(from);
+      const wrapperRect = wrapperEl.getBoundingClientRect();
+      const cursorRelativeTop = coords.top - wrapperRect.top;
+      const targetOffset = wrapperRect.height / 2;
+      const scrollDelta = cursorRelativeTop - targetOffset;
+
+      if (Math.abs(scrollDelta) > 10) {
+        wrapperEl.scrollBy({ top: scrollDelta, behavior: "smooth" });
+      }
+    } catch {
+      // coordsAtPos can throw when view is not ready
+    }
+  }
+
   onDestroy(() => {
     editor?.destroy();
   });
@@ -155,6 +180,31 @@
         setContent(content);
       }
     }
+  });
+
+  // Sync focusMode prop to extension
+  $effect(() => {
+    if (editor) {
+      editor.commands.setFocusMode(focusMode);
+      // Trigger typewriter scroll when mode changes
+      if (focusMode) {
+        requestAnimationFrame(scrollCursorToCenter);
+      }
+    }
+  });
+
+  // Typewriter scroll on selection changes
+  $effect(() => {
+    if (!editor || !focusMode) return;
+
+    const handler = () => requestAnimationFrame(scrollCursorToCenter);
+    editor.on("selectionUpdate", handler);
+    editor.on("update", handler);
+
+    return () => {
+      editor?.off("selectionUpdate", handler);
+      editor?.off("update", handler);
+    };
   });
 
   // Keyboard shortcuts for formatting:
@@ -184,9 +234,11 @@
 
 <div
   class="editor-wrapper"
+  class:typewriter-mode={focusMode}
   onkeydown={handleKeydown}
   role="textbox"
   tabindex="-1"
+  bind:this={wrapperEl}
 >
   <div bind:this={element} class="editor-mount"></div>
 </div>
@@ -491,5 +543,15 @@
     .editor-mount
     :global(.search-match-current) {
     background: rgba(10, 132, 255, 0.3);
+  }
+  /* ===== Focus Mode: dim non-active blocks ===== */
+  .editor-mount :global(.focus-dimmed) {
+    opacity: 0.15;
+    transition: opacity 0.3s ease;
+  }
+
+  /* ===== Typewriter Mode: extra bottom padding ===== */
+  .typewriter-mode :global(.wysiwyg-editor) {
+    padding-bottom: 50vh;
   }
 </style>
