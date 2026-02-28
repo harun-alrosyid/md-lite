@@ -4,10 +4,20 @@ import { tick } from 'svelte';
 import App from './App.svelte';
 
 let capturedOnUpdate: ((markdown: string) => void) | null = null;
+let capturedOnRename: ((newName: string) => void) | null = null;
 
-vi.mock('./lib/TitleBar.svelte', () => ({
-    default: vi.fn(),
-}));
+vi.mock('./lib/TitleBar.svelte', () => {
+    return {
+        default: function MockTitleBar(this: any, ...args: any[]) {
+            try {
+                const props = args[1];
+                if (props && typeof props === 'object' && props.onRename) {
+                    capturedOnRename = props.onRename;
+                }
+            } catch { }
+        },
+    };
+});
 
 vi.mock('./lib/WysiwygEditor.svelte', () => {
     return {
@@ -66,6 +76,7 @@ import {
     createNewFile,
     saveFileAs,
     saveFile,
+    renameFile,
     closeWindow,
 } from './lib/shortcuts';
 
@@ -294,6 +305,38 @@ describe('App - File Operations', () => {
         await onClose();
         expect(saveFile).not.toHaveBeenCalled();
         expect(closeWindow).toHaveBeenCalledOnce();
+    });
+
+    it('rename: calls saveFileAs when no path exists (unsaved file)', async () => {
+        vi.mocked(saveFileAs).mockResolvedValue('/saved/path/new-name.md');
+        await renderAndFlush();
+
+        expect(typeof capturedOnRename).toBe('function');
+        await capturedOnRename?.('new-name.md');
+
+        expect(saveFileAs).toHaveBeenCalledWith('', 'new-name.md');
+        expect(renameFile).not.toHaveBeenCalled();
+    });
+
+    it('rename: calls renameFile when path exists', async () => {
+        vi.mocked(openFileDialog).mockResolvedValue({
+            path: '/original/path/old.md',
+            content: 'some content'
+        });
+        vi.mocked(renameFile).mockResolvedValue('/original/path/new.md');
+        await renderAndFlush();
+
+        // 1. Open a file to set filePath
+        const { onOpen } = vi.mocked(setupShortcuts).mock.calls[0][0];
+        await onOpen();
+        await tick();
+
+        // 2. Trigger rename from TitleBar
+        expect(typeof capturedOnRename).toBe('function');
+        await capturedOnRename?.('new.md');
+
+        expect(renameFile).toHaveBeenCalledWith('/original/path/old.md', 'new.md');
+        expect(saveFileAs).not.toHaveBeenCalled();
     });
 });
 
