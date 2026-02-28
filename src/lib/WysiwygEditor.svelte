@@ -6,7 +6,7 @@
   import Typography from "@tiptap/extension-typography";
   import TaskList from "@tiptap/extension-task-list";
   import TaskItem from "@tiptap/extension-task-item";
-  import Link from "@tiptap/extension-link";
+  import { CustomLink } from "./CustomLink";
   import { CustomImage } from "./CustomImage";
   import { isTauri } from "./env";
   import { open } from "@tauri-apps/plugin-shell";
@@ -104,8 +104,8 @@
       TaskList,
       TaskItem.configure({ nested: true }),
       // Links: [title](url)
-      Link.configure({
-        openOnClick: false,
+      CustomLink.configure({
+        openOnClick: true,
         autolink: true,
       }),
       // Images: ![alt](url)
