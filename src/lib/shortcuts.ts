@@ -14,6 +14,7 @@ export interface ShortcutHandlers {
     onToggleFocusMode: () => void;
     onCommandPalette: () => void;
     onGoHome: () => void;
+    onToggleOutline: () => void;
     onSetHeading1?: () => void;
     onSetHeading2?: () => void;
     onSetHeading3?: () => void;
@@ -286,6 +287,7 @@ export function setupShortcuts(handlers: ShortcutHandlers): () => void {
         onToggleFocusMode: handlers.onToggleFocusMode,
         onCommandPalette: handlers.onCommandPalette,
         onGoHome: handlers.onGoHome,
+        onToggleOutline: handlers.onToggleOutline,
         onSetHeading1: handlers.onSetHeading1,
         onSetHeading2: handlers.onSetHeading2,
         onSetHeading3: handlers.onSetHeading3,
