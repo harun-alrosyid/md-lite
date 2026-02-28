@@ -25,6 +25,7 @@ export interface CommandHandlers {
     onGoHome: () => void;
     onCommandPalette: () => void;
     onOpenShortcutConfig: () => void;
+    onToggleOutline: () => void;
     onSetHeading: (level: number) => void;
     onSetParagraph: () => void;
     onToggleBold: () => void;
@@ -113,6 +114,13 @@ export function createCommands(handlers: CommandHandlers, config: ShortcutConfig
             shortcut: format("onToggleFocusMode"),
             category: "View",
             action: handlers.onToggleFocusMode,
+        },
+        {
+            id: "toggle-outline",
+            label: "Toggle Document Outline",
+            shortcut: format("onToggleOutline"),
+            category: "View",
+            action: handlers.onToggleOutline,
         },
         {
             id: "find-replace",
