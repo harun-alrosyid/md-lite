@@ -7,7 +7,9 @@
   import TaskList from "@tiptap/extension-task-list";
   import TaskItem from "@tiptap/extension-task-item";
   import Link from "@tiptap/extension-link";
-  import Image from "@tiptap/extension-image";
+  import { CustomImage } from "./CustomImage";
+  import { isTauri } from "./env";
+  import { open } from "@tauri-apps/plugin-shell";
   import Table from "@tiptap/extension-table";
   import TableRow from "@tiptap/extension-table-row";
   import TableCell from "@tiptap/extension-table-cell";
@@ -38,6 +40,7 @@
 
   type Props = {
     content: string;
+    filePath?: string;
     focusMode?: boolean;
     onUpdate: (markdown: string) => void;
     onEditorReady?: (editor: Editor) => void;
@@ -49,6 +52,7 @@
 
   let {
     content,
+    filePath,
     focusMode = false,
     onUpdate,
     onEditorReady,
@@ -105,7 +109,9 @@
         autolink: true,
       }),
       // Images: ![alt](url)
-      Image,
+      CustomImage.configure({
+        currentFilePath: () => filePath || "",
+      }),
       // Tables: | col | col |
       Table.configure({
         resizable: false,
@@ -178,6 +184,32 @@
     // Initial extraction
     if (editor) {
       updateOutline(editor);
+    }
+
+    // Bulletproof click interceptor for links
+    if (element) {
+      element.addEventListener(
+        "click",
+        (event) => {
+          if (event.metaKey || event.ctrlKey) {
+            const target = event.target as HTMLElement;
+            if (!target) return;
+            const el = target.nodeType === 3 ? target.parentElement : target;
+            const a = el?.closest("a");
+            if (a && a.href) {
+              event.preventDefault();
+              event.stopPropagation();
+              const url = a.getAttribute("href") || a.href;
+              if (isTauri) {
+                open(url).catch((err) => console.error(err));
+              } else {
+                window.open(url, "_blank");
+              }
+            }
+          }
+        },
+        { capture: true },
+      );
     }
 
     onEditorReady?.(editor);
@@ -493,6 +525,21 @@
     margin-bottom: 0.25em;
   }
 
+  /* ===== Lists ===== */
+  .editor-mount :global(ul:not([data-type="taskList"])),
+  .editor-mount :global(ol) {
+    margin-left: 1.5rem;
+    padding-left: 0;
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+  }
+  .editor-mount :global(ul:not([data-type="taskList"])) {
+    list-style-type: disc;
+  }
+  .editor-mount :global(ol) {
+    list-style-type: decimal;
+  }
+
   /* ===== Task lists ===== */
   .editor-mount :global(ul[data-type="taskList"]) {
     list-style: none;
@@ -560,6 +607,16 @@
     max-width: 100%;
     border-radius: 8px;
     margin: 1em 0;
+  }
+
+  /* ===== Links ===== */
+  .editor-mount :global(a) {
+    color: #0a84ff;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  :global(:root[data-theme="light"]) .editor-mount :global(a) {
+    color: #0066cc;
   }
 
   /* ===== Selection ===== */
