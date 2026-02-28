@@ -90,7 +90,7 @@ vi.mock('@tiptap/extension-task-item', () => ({
 }));
 
 vi.mock('@tiptap/extension-link', () => ({
-    default: { configure: vi.fn(() => ({})) },
+    Link: { extend: vi.fn(() => ({ configure: vi.fn(() => ({})) })) },
 }));
 
 vi.mock('./CustomImage', () => ({
