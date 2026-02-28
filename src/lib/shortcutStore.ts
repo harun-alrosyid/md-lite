@@ -9,6 +9,7 @@ export type ActionType =
     | "onToggleFocusMode"
     | "onCommandPalette"
     | "onGoHome"
+    | "onToggleOutline"
     | "onSetHeading1"
     | "onSetHeading2"
     | "onSetHeading3"
@@ -43,6 +44,7 @@ export const defaultShortcuts: ShortcutConfig = {
     onToggleFocusMode: "CmdOrCtrl+Shift+F",
     onCommandPalette: "CmdOrCtrl+K",
     onGoHome: "CmdOrCtrl+Shift+W",
+    onToggleOutline: "CmdOrCtrl+Shift+O",
     onSetHeading1: "CmdOrCtrl+1",
     onSetHeading2: "CmdOrCtrl+2",
     onSetHeading3: "CmdOrCtrl+3",
