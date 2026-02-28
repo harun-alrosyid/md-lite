@@ -21,6 +21,11 @@
   import { Markdown } from "tiptap-markdown";
   import { SearchReplace } from "./search-replace";
   import { FocusMode } from "./focus-mode";
+  import {
+    extractHeadings,
+    getActiveHeading,
+    type OutlineHeading,
+  } from "./outline";
 
   // Import syntax highlighting theme
   import "./hljs-theme.css";
@@ -36,13 +41,41 @@
     focusMode?: boolean;
     onUpdate: (markdown: string) => void;
     onEditorReady?: (editor: Editor) => void;
+    onOutlineChange?: (
+      headings: OutlineHeading[],
+      activeId: string | null,
+    ) => void;
   };
 
-  let { content, focusMode = false, onUpdate, onEditorReady }: Props = $props();
+  let {
+    content,
+    focusMode = false,
+    onUpdate,
+    onEditorReady,
+    onOutlineChange,
+  }: Props = $props();
   let element: HTMLDivElement;
   let wrapperEl: HTMLDivElement;
   let editor: Editor | null = null;
   let isSettingContent = false;
+
+  let currentHeadings: OutlineHeading[] = [];
+  let outlineTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function updateOutline(e: Editor) {
+    if (!onOutlineChange) return;
+    currentHeadings = extractHeadings(e);
+    const activeId = getActiveHeading(e, currentHeadings);
+    onOutlineChange(currentHeadings, activeId);
+  }
+
+  function debounceOutlineUpdate(e: Editor) {
+    if (!onOutlineChange) return;
+    if (outlineTimer) clearTimeout(outlineTimer);
+    outlineTimer = setTimeout(() => {
+      updateOutline(e);
+    }, 500); // Debounce heading extraction
+  }
 
   onMount(() => {
     const extensions: Extensions = [
@@ -124,6 +157,13 @@
         if (!isSettingContent) {
           const md = e.storage.markdown.getMarkdown();
           onUpdate(md);
+          debounceOutlineUpdate(e);
+        }
+      },
+      onSelectionUpdate: ({ editor: e }) => {
+        if (onOutlineChange && currentHeadings.length > 0) {
+          const activeId = getActiveHeading(e, currentHeadings);
+          onOutlineChange(currentHeadings, activeId);
         }
       },
       onTransaction: ({ editor: e }) => {
@@ -133,6 +173,11 @@
 
     if (content) {
       setContent(content);
+    }
+
+    // Initial extraction
+    if (editor) {
+      updateOutline(editor);
     }
 
     onEditorReady?.(editor);
