@@ -4,12 +4,22 @@
     isDirty: boolean;
     isSaving: boolean;
     theme: "dark" | "light";
+    hasFile: boolean;
     onToggleTheme: () => void;
     onRename: (newName: string) => void;
+    onToggleOutline: () => void;
   };
 
-  let { fileName, isDirty, isSaving, theme, onToggleTheme, onRename }: Props =
-    $props();
+  let {
+    fileName,
+    isDirty,
+    isSaving,
+    theme,
+    hasFile,
+    onToggleTheme,
+    onRename,
+    onToggleOutline,
+  }: Props = $props();
 
   // Inline rename state
   let editing = $state(false);
@@ -43,9 +53,35 @@
 </script>
 
 <div class="titlebar" data-tauri-drag-region>
-  <!-- Left: traffic spacer -->
+  <!-- Left: traffic spacer and Outline button -->
   <div class="titlebar-left">
     <div class="titlebar-traffic-spacer"></div>
+    {#if hasFile}
+      <button
+        class="action-btn"
+        onclick={onToggleOutline}
+        title="Toggle Outline (⌘⇧O)"
+        aria-label="Toggle Outline"
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <line x1="8" y1="6" x2="21" y2="6" />
+          <line x1="8" y1="12" x2="21" y2="12" />
+          <line x1="8" y1="18" x2="21" y2="18" />
+          <line x1="3" y1="6" x2="3.01" y2="6" />
+          <line x1="3" y1="12" x2="3.01" y2="12" />
+          <line x1="3" y1="18" x2="3.01" y2="18" />
+        </svg>
+      </button>
+    {/if}
   </div>
 
   <!-- Center: filename -->
@@ -75,7 +111,7 @@
     {/if}
   </div>
 
-  <!-- Right: theme toggle -->
+  <!-- Right: actions -->
   <div class="titlebar-actions">
     <button
       class="action-btn"
