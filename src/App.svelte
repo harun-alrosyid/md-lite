@@ -8,6 +8,7 @@
   import CommandPalette from "./lib/CommandPalette.svelte";
   import ShortcutConfigModal from "./lib/ShortcutConfigModal.svelte";
   import OutlinePanel from "./lib/OutlinePanel.svelte";
+  import FormatBar from "./lib/FormatBar.svelte";
   import type { OutlineHeading } from "./lib/outline";
   import { scrollToHeading } from "./lib/outline";
   import type { CommandHandlers } from "./lib/commands";
@@ -484,6 +485,10 @@
       >
     </div>
   </div>
+{/if}
+
+{#if !!filePath || content !== ""}
+  <FormatBar editor={editorRef} />
 {/if}
 
 <main class="main-content">
