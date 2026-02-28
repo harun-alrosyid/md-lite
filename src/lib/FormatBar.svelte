@@ -7,72 +7,104 @@
 
     let { editor }: Props = $props();
 
+    let showHeadingMenu = $state(false);
+    let headingMenuRef: HTMLElement | null = $state(null);
+
     function toggleFormat(action: () => void) {
         if (editor) action();
+        showHeadingMenu = false; // Always close menu after acting
     }
 
     function promptLink() {
         if (!editor) return;
-        const attrs = editor.getAttributes("link");
-        const previousUrl = attrs ? attrs.href || "" : "";
+
         const { from, to } = editor.state.selection;
+        const text = editor.state.doc.textBetween(from, to, " ");
 
-        const url = window.prompt("URL", previousUrl);
-
-        // Cancelled
-        if (url === null) return;
-
-        editor.commands.focus();
-        editor.commands.setTextSelection({ from, to });
-
-        // Empty URL prevents creation or removes existing
-        if (url === "") {
-            if (editor.isActive("link")) {
-                editor
-                    .chain()
-                    .focus()
-                    .extendMarkRange("link")
-                    .unsetLink()
-                    .run();
-            }
+        // If it's already a link, we remove the link format to allow editing
+        if (editor.isActive("link")) {
+            editor.chain().focus().unsetLink().run();
             return;
         }
 
-        // Set valid URL
-        if (editor.isActive("link")) {
+        // Insert raw markdown syntax for a link
+        if (from === to) {
             editor
                 .chain()
                 .focus()
-                .extendMarkRange("link")
-                .setLink({ href: url })
-                .run();
-        } else if (from === to) {
-            editor
-                .chain()
-                .focus()
-                .insertContent(`<a href="${url}">${url}</a>`)
+                .insertContent("[]()")
+                .setTextSelection(from + 1)
                 .run();
         } else {
-            editor.chain().focus().setLink({ href: url }).run();
+            editor
+                .chain()
+                .focus()
+                .insertContent(`[${text}]()`)
+                .setTextSelection(from + text.length + 3)
+                .run();
         }
     }
 </script>
 
+<svelte:window
+    onclick={(e) => {
+        if (
+            showHeadingMenu &&
+            headingMenuRef &&
+            !headingMenuRef.contains(e.target as Node)
+        ) {
+            showHeadingMenu = false;
+        }
+    }}
+/>
+
 {#if editor}
     <div class="format-bar">
         <!-- Headers -->
-        <button
-            class="format-btn"
-            class:active={editor.isActive("heading")}
-            onmousedown={(e) => e.preventDefault()}
-            onclick={() =>
-                toggleFormat(() =>
-                    editor?.chain().focus().toggleHeading({ level: 1 }).run(),
-                )}
-            title="Header (H1)"
-        >
-            H
-        </button>
+        <div class="heading-wrapper" bind:this={headingMenuRef}>
+            <button
+                class="format-btn"
+                class:active={editor.isActive("heading")}
+                onmousedown={(e) => e.preventDefault()}
+                onclick={() => (showHeadingMenu = !showHeadingMenu)}
+                title="Headers"
+            >
+                H
+            </button>
+
+            {#if showHeadingMenu}
+                <div class="heading-dropdown">
+                    <button
+                        class="dropdown-item"
+                        class:active={editor.isActive("paragraph")}
+                        onmousedown={(e) => e.preventDefault()}
+                        onclick={() =>
+                            toggleFormat(() =>
+                                editor?.chain().focus().setParagraph().run(),
+                            )}
+                    >
+                        Normal Text
+                    </button>
+                    {#each [1, 2, 3, 4, 5, 6] as level}
+                        <button
+                            class="dropdown-item"
+                            class:active={editor.isActive("heading", { level })}
+                            onmousedown={(e) => e.preventDefault()}
+                            onclick={() =>
+                                toggleFormat(() =>
+                                    editor
+                                        ?.chain()
+                                        .focus()
+                                        .toggleHeading({ level: level as any })
+                                        .run(),
+                                )}
+                        >
+                            <span class={`h${level}`}>Heading {level}</span>
+                        </button>
+                    {/each}
+                </div>
+            {/if}
+        </div>
         <div class="divider"></div>
 
         <!-- Marks -->
@@ -341,7 +373,8 @@
         padding: 6px 16px;
         background-color: var(--titlebar-bg, #1a1a1a);
         border-bottom: 1px solid var(--border-color, #333);
-        overflow-x: auto;
+        flex-wrap: wrap;
+        overflow: visible;
         /* Prevent shrinking vertically */
         flex-shrink: 0;
     }
@@ -438,5 +471,98 @@
     }
     :global(.theme-light) .format-delete {
         color: #e11d48;
+    }
+
+    /* Heading Dropdown */
+    .heading-wrapper {
+        position: relative;
+        display: inline-block;
+    }
+
+    .heading-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        margin-top: 4px;
+        background-color: var(--titlebar-bg, #1a1a1a);
+        border: 1px solid var(--border-color, #333);
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        min-width: 140px;
+        z-index: 100;
+        padding: 4px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    /* Light Theme */
+    :global(.theme-light) .heading-dropdown {
+        background-color: #ffffff;
+        border-color: #e5e5e5;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .dropdown-item {
+        background: transparent;
+        border: none;
+        color: #e2e8f0;
+        display: flex;
+        align-items: center;
+        padding: 6px 12px;
+        font-size: 13px;
+        border-radius: 4px;
+        cursor: pointer;
+        text-align: left;
+        width: 100%;
+        transition: all 0.15s ease;
+    }
+
+    .dropdown-item:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+        color: #fff;
+    }
+
+    .dropdown-item.active {
+        background-color: rgba(59, 130, 246, 0.2);
+        color: #93c5fd;
+    }
+
+    :global(.theme-light) .dropdown-item {
+        color: #333;
+    }
+    :global(.theme-light) .dropdown-item:hover {
+        background-color: #f1f5f9;
+        color: #000;
+    }
+    :global(.theme-light) .dropdown-item.active {
+        background-color: #eff6ff;
+        color: #1d4ed8;
+    }
+
+    /* Styling internal spans to look like actual headings somewhat */
+    .h1 {
+        font-size: 16px;
+        font-weight: bold;
+    }
+    .h2 {
+        font-size: 15px;
+        font-weight: bold;
+    }
+    .h3 {
+        font-size: 14px;
+        font-weight: bold;
+    }
+    .h4 {
+        font-size: 13px;
+        font-weight: bold;
+    }
+    .h5 {
+        font-size: 12px;
+        font-weight: bold;
+    }
+    .h6 {
+        font-size: 11px;
+        font-weight: bold;
     }
 </style>
