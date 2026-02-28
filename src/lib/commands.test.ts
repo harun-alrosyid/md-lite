@@ -25,6 +25,7 @@ function makeHandlers(): CommandHandlers {
         onInsertHorizontalRule: vi.fn(),
         onOpenShortcutConfig: vi.fn(),
         onCommandPalette: vi.fn(),
+        onToggleOutline: vi.fn(),
         onToggleHighlight: vi.fn(),
     };
 }
