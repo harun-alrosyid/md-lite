@@ -7,6 +7,9 @@
   import SearchBar from "./lib/SearchBar.svelte";
   import CommandPalette from "./lib/CommandPalette.svelte";
   import ShortcutConfigModal from "./lib/ShortcutConfigModal.svelte";
+  import OutlinePanel from "./lib/OutlinePanel.svelte";
+  import type { OutlineHeading } from "./lib/outline";
+  import { scrollToHeading } from "./lib/outline";
   import type { CommandHandlers } from "./lib/commands";
   import {
     setupShortcuts,
@@ -67,6 +70,11 @@
   let showSearchBar: boolean = $state(false);
   let editorRef: import("@tiptap/core").Editor | null = $state(null);
 
+  // Outline state
+  let showOutline: boolean = $state(false);
+  let outlineHeadings: OutlineHeading[] = $state([]);
+  let outlineActiveId: string | null = $state(null);
+
   // Focus mode state (combined focus + typewriter)
   let focusMode: boolean = $state(false);
 
@@ -103,6 +111,12 @@
     onFind: () => {
       showCommandPalette = false;
       showSearchBar = !showSearchBar;
+    },
+    onToggleOutline: () => {
+      const hasFile = !!filePath || content !== "";
+      if (!hasFile) return;
+      showCommandPalette = false;
+      showOutline = !showOutline;
     },
     onSetHeading: (level: number) => {
       if (!editorRef) return;
@@ -291,7 +305,22 @@
   }
 
   async function handleRename(newName: string) {
-    if (!filePath) return;
+    if (!filePath) {
+      try {
+        // If file is unsaved, rename acts like a "Save As"
+        const path = await saveFileAs(content, newName);
+        if (path) {
+          filePath = path;
+          isDirty = false;
+          addRecentFile(path);
+          refreshRecents();
+          dismissShadow().catch(() => {});
+        }
+      } catch (err) {
+        console.error("Save As from rename failed:", err);
+      }
+      return;
+    }
 
     try {
       const newPath = await renameFile(filePath, newName);
@@ -417,8 +446,10 @@
   {isDirty}
   {isSaving}
   {theme}
+  hasFile={!!filePath || content !== ""}
   onToggleTheme={toggleTheme}
   onRename={handleRename}
+  onToggleOutline={commandHandlers.onToggleOutline}
 />
 
 {#if recoveryData}
@@ -466,6 +497,22 @@
     {focusMode}
     onUpdate={handleContentUpdate}
     onEditorReady={(e) => (editorRef = e)}
+    onOutlineChange={(headings, activeId) => {
+      outlineHeadings = headings;
+      outlineActiveId = activeId;
+    }}
+  />
+
+  <OutlinePanel
+    visible={showOutline}
+    headings={outlineHeadings}
+    activeId={outlineActiveId}
+    onJump={(pos) => {
+      if (editorRef) {
+        scrollToHeading(editorRef, pos);
+      }
+    }}
+    onClose={() => (showOutline = false)}
   />
 
   {#if !filePath && content === ""}
