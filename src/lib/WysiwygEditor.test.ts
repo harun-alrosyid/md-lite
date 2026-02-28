@@ -93,8 +93,8 @@ vi.mock('@tiptap/extension-link', () => ({
     default: { configure: vi.fn(() => ({})) },
 }));
 
-vi.mock('@tiptap/extension-image', () => ({
-    default: {},
+vi.mock('./CustomImage', () => ({
+    CustomImage: { configure: vi.fn(() => ({})) },
 }));
 
 vi.mock('@tiptap/extension-table', () => ({
