@@ -32,15 +32,20 @@
             editor
                 .chain()
                 .focus()
-                .insertContent("[]()")
+                .insertContent({ type: "text", text: "[](url)" })
+                // Place cursor inside the brackets
                 .setTextSelection(from + 1)
                 .run();
         } else {
             editor
                 .chain()
                 .focus()
-                .insertContent(`[${text}]()`)
-                .setTextSelection(from + text.length + 3)
+                .insertContent({ type: "text", text: `[${text}](url)` })
+                // Highlight the "url" placeholder for quick editing
+                .setTextSelection({
+                    from: from + text.length + 3,
+                    to: from + text.length + 6,
+                })
                 .run();
         }
     }
