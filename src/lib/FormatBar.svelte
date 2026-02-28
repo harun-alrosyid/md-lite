@@ -49,6 +49,35 @@
                 .run();
         }
     }
+
+    function promptImage() {
+        if (!editor) return;
+
+        const { from, to } = editor.state.selection;
+        const text = editor.state.doc.textBetween(from, to, " ");
+
+        // Insert raw markdown syntax for an image
+        if (from === to) {
+            editor
+                .chain()
+                .focus()
+                .insertContent({ type: "text", text: "![alt text](image.jpg)" })
+                // Place cursor inside the brackets for alt text
+                .setTextSelection(from + 2)
+                .run();
+        } else {
+            editor
+                .chain()
+                .focus()
+                .insertContent({ type: "text", text: `![${text}](image.jpg)` })
+                // Highlight the "image.jpg" placeholder for quick editing
+                .setTextSelection({
+                    from: from + text.length + 4,
+                    to: from + text.length + 13,
+                })
+                .run();
+        }
+    }
 </script>
 
 <svelte:window
@@ -195,6 +224,28 @@
                 ></path>
             </svg>
         </button>
+        <button
+            class="format-btn"
+            // class:active={editor.isActive("image")}
+            onmousedown={(e) => e.preventDefault()}
+            onclick={promptImage}
+            title="Image"
+        >
+            <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+            </svg>
+        </button>
         <div class="divider"></div>
 
         <!-- Lists -->
@@ -283,7 +334,7 @@
         <div class="divider"></div>
 
         <!-- Table Master -->
-        <button
+        <!-- <button
             class="format-btn"
             class:active={editor.isActive("table")}
             onmousedown={(e) => e.preventDefault()}
@@ -366,7 +417,7 @@
                 onclick={() => editor?.chain().focus().deleteTable().run()}
                 title="Delete Table">Drop</button
             >
-        {/if}
+        {/if} -->
     </div>
 {/if}
 
@@ -385,22 +436,22 @@
     }
 
     /* Light Theme */
-    :global(.theme-light) .format-bar {
+    :global(:root[data-theme="light"]) .format-bar {
         background-color: #f8f9fa;
         border-bottom-color: #e5e5e5;
     }
-    :global(.theme-light) .format-btn {
+    :global(:root[data-theme="light"]) .format-btn {
         color: #444;
     }
-    :global(.theme-light) .format-btn:hover {
+    :global(:root[data-theme="light"]) .format-btn:hover {
         background-color: #e2e8f0;
         color: #000;
     }
-    :global(.theme-light) .format-btn.active {
+    :global(:root[data-theme="light"]) .format-btn.active {
         background-color: #2563eb;
         color: #fff;
     }
-    :global(.theme-light) .divider {
+    :global(:root[data-theme="light"]) .divider {
         background-color: #cbd5e1;
     }
 
@@ -471,10 +522,10 @@
         color: #fecaca;
     }
 
-    :global(.theme-light) .format-table-action {
+    :global(:root[data-theme="light"]) .format-table-action {
         color: #0284c7;
     }
-    :global(.theme-light) .format-delete {
+    :global(:root[data-theme="light"]) .format-delete {
         color: #e11d48;
     }
 
@@ -502,7 +553,7 @@
     }
 
     /* Light Theme */
-    :global(.theme-light) .heading-dropdown {
+    :global(:root[data-theme="light"]) .heading-dropdown {
         background-color: #ffffff;
         border-color: #e5e5e5;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
@@ -533,14 +584,14 @@
         color: #93c5fd;
     }
 
-    :global(.theme-light) .dropdown-item {
+    :global(:root[data-theme="light"]) .dropdown-item {
         color: #333;
     }
-    :global(.theme-light) .dropdown-item:hover {
+    :global(:root[data-theme="light"]) .dropdown-item:hover {
         background-color: #f1f5f9;
         color: #000;
     }
-    :global(.theme-light) .dropdown-item.active {
+    :global(:root[data-theme="light"]) .dropdown-item.active {
         background-color: #eff6ff;
         color: #1d4ed8;
     }
