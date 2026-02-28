@@ -27,8 +27,14 @@ export const CustomLink = Link.extend({
                                 const text = match[1];
                                 const url = match[2];
 
+                                // Skip if empty or matches our explicit placeholder
                                 if (url.trim() === "" || text.trim() === "" || url === "url") {
-                                    continue; // Skip if empty or matches our explicit placeholder
+                                    continue;
+                                }
+
+                                // Skip markdown images ![alt](url)
+                                if (match.index > 0 && textContent[match.index - 1] === '!') {
+                                    continue;
                                 }
 
                                 // Pos is the block node start. Children start at pos + 1
