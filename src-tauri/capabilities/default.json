@@ -24,6 +24,8 @@
     "fs:allow-read",
     "fs:allow-write",
     "fs:allow-exists",
-    "fs:allow-rename"
+    "fs:allow-rename",
+    "shell:default",
+    "shell:allow-open"
   ]
 }
