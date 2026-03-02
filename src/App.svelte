@@ -1,17 +1,17 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-  import TitleBar from "./lib/TitleBar.svelte";
-  import WysiwygEditor from "./lib/WysiwygEditor.svelte";
-  import StatusBar from "./lib/StatusBar.svelte";
-  import SearchBar from "./lib/SearchBar.svelte";
-  import CommandPalette from "./lib/CommandPalette.svelte";
-  import ShortcutConfigModal from "./lib/ShortcutConfigModal.svelte";
-  import OutlinePanel from "./lib/OutlinePanel.svelte";
-  import FormatBar from "./lib/FormatBar.svelte";
-  import type { OutlineHeading } from "./lib/outline";
-  import { scrollToHeading } from "./lib/outline";
-  import type { CommandHandlers } from "./lib/commands";
+  import TitleBar from "./lib/components/TitleBar.svelte";
+  import WysiwygEditor from "./lib/components/WysiwygEditor.svelte";
+  import StatusBar from "./lib/components/StatusBar.svelte";
+  import SearchBar from "./lib/components/SearchBar.svelte";
+  import CommandPalette from "./lib/components/CommandPalette.svelte";
+  import ShortcutConfigModal from "./lib/components/ShortcutConfigModal.svelte";
+  import OutlinePanel from "./lib/components/OutlinePanel.svelte";
+  import FormatBar from "./lib/components/FormatBar.svelte";
+  import type { OutlineHeading } from "./lib/core/outline";
+  import { scrollToHeading } from "./lib/core/outline";
+  import type { CommandHandlers } from "./lib/core/commands";
   import {
     setupShortcuts,
     openFileDialog,
@@ -24,9 +24,12 @@
     shadowSave,
     checkShadowRecovery,
     dismissShadow,
-  } from "./lib/shortcuts";
-  import { loadShortcuts, formatShortcutForDisplay } from "./lib/shortcutStore";
-  import { isTauri } from "./lib/env";
+  } from "./lib/core/shortcuts";
+  import {
+    loadShortcuts,
+    formatShortcutForDisplay,
+  } from "./lib/core/shortcutStore";
+  import { isTauri } from "./lib/core/env";
   import {
     deriveFileName,
     toggleTheme,
@@ -37,9 +40,9 @@
     getRecentFiles,
     addRecentFile,
     removeRecentFile,
-  } from "./lib/app-logic";
-  import type { TelemetryResult } from "./lib/telemetry.worker";
-  import TelemetryWorker from "./lib/telemetry.worker?worker";
+  } from "./lib/core/app-logic";
+  import type { TelemetryResult } from "./lib/workers/telemetry.worker";
+  import TelemetryWorker from "./lib/workers/telemetry.worker?worker";
 
   import { fileState } from "./lib/stores/file.svelte";
   import { uiState } from "./lib/stores/ui.svelte";
@@ -70,9 +73,9 @@
     onSaveAs: handleSaveAs,
     onClose: handleClose,
     onToggleTheme: () => {
-        toggleTheme();
-        document.documentElement.setAttribute("data-theme", uiState.theme);
-        localStorage.setItem("md-lite-theme", uiState.theme);
+      toggleTheme();
+      document.documentElement.setAttribute("data-theme", uiState.theme);
+      localStorage.setItem("md-lite-theme", uiState.theme);
     },
     onToggleFocusMode: () => {
       uiState.focusMode = !uiState.focusMode;
@@ -329,7 +332,10 @@
   }
 
   onMount(async () => {
-    const saved = localStorage.getItem("md-lite-theme") as "dark" | "light" | null;
+    const saved = localStorage.getItem("md-lite-theme") as
+      | "dark"
+      | "light"
+      | null;
     if (saved) {
       uiState.theme = saved;
       document.documentElement.setAttribute("data-theme", uiState.theme);
