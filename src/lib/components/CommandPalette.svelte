@@ -4,9 +4,9 @@
         filterCommands,
         type CommandHandlers,
         type Command,
-    } from "./commands";
+    } from "../core/commands";
 
-    import type { ShortcutConfig } from "./shortcutStore";
+    import type { ShortcutConfig } from "../core/shortcutStore";
 
     interface Props {
         visible: boolean;

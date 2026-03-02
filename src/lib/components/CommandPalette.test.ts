@@ -4,15 +4,15 @@ import { tick } from 'svelte';
 import CommandPalette from './CommandPalette.svelte';
 
 // We mock the commands module so we can control the commands injected into the palette
-vi.mock('./commands', async () => {
-    const actual = await vi.importActual('./commands') as any;
+vi.mock('../core/commands', async () => {
+    const actual = await vi.importActual('../core/commands') as any;
     return {
         ...actual,
         createCommands: vi.fn(),
     };
 });
 
-import { createCommands } from './commands';
+import { createCommands, type Command } from '../core/commands';
 
 describe('CommandPalette', () => {
     const mockHandlers = {
@@ -26,9 +26,9 @@ describe('CommandPalette', () => {
         onOpen: 'mod+o',
     } as any;
 
-    const mockCmd1 = { id: 'new', label: 'New File', category: 'File', action: vi.fn() };
-    const mockCmd2 = { id: 'open', label: 'Open File', category: 'File', action: vi.fn() };
-    const mockCmd3 = { id: 'custom-shortcuts', label: 'Shortcuts', category: 'App', action: vi.fn(), shortcut: 'mod+k' };
+    const mockCmd1: Command = { id: 'new', label: 'New File', category: 'File', action: vi.fn() };
+    const mockCmd2: Command = { id: 'open', label: 'Open File', category: 'File', action: vi.fn() };
+    const mockCmd3: Command = { id: 'custom-shortcuts', label: 'Shortcuts', category: 'Settings', action: vi.fn(), shortcut: 'mod+k' };
 
     beforeEach(() => {
         vi.clearAllMocks();
