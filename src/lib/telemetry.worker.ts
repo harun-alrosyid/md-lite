@@ -12,7 +12,7 @@ export interface TelemetryResult {
 
 const WORDS_PER_MINUTE = 225;
 
-function computeTelemetry(text: string): TelemetryResult {
+export function computeTelemetry(text: string): TelemetryResult {
     const trimmed = text.trim();
 
     if (!trimmed) {
