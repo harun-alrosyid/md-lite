@@ -23,41 +23,29 @@
     updateRecentMenu,
     shadowSave,
     checkShadowRecovery,
-    restoreShadow,
     dismissShadow,
-    type ShadowRecovery,
   } from "./lib/shortcuts";
   import { loadShortcuts, formatShortcutForDisplay } from "./lib/shortcutStore";
   import { isTauri } from "./lib/env";
   import {
     deriveFileName,
-    toggleTheme as toggleThemeLogic,
+    toggleTheme,
     performSave,
-    handleContentUpdate as handleContentUpdateLogic,
+    handleContentUpdate,
     scheduleAutoSave,
     scheduleShadowSave,
     getRecentFiles,
     addRecentFile,
     removeRecentFile,
-    type RecentFile,
   } from "./lib/app-logic";
   import type { TelemetryResult } from "./lib/telemetry.worker";
   import TelemetryWorker from "./lib/telemetry.worker?worker";
 
-  // State
-  let content: string = $state("");
-  let filePath: string = $state("");
-  let isDirty: boolean = $state(false);
-  let isSaving: boolean = $state(false);
-  let theme: "dark" | "light" = $state("dark");
-  let saveTimer: ReturnType<typeof setTimeout> | null = null;
-  let cleanupShortcuts: (() => void) | null = null;
-  let recentFiles: RecentFile[] = $state([]);
-  let unlistenMenu: UnlistenFn[] = [];
+  import { fileState } from "./lib/stores/file.svelte";
+  import { uiState } from "./lib/stores/ui.svelte";
 
-  // Shadow save state
-  let shadowTimer: ReturnType<typeof setTimeout> | null = null;
-  let recoveryData: ShadowRecovery | null = $state(null);
+  let cleanupShortcuts: (() => void) | null = null;
+  let unlistenMenu: UnlistenFn[] = [];
 
   // Telemetry state
   let telemetryWorker: Worker | null = null;
@@ -67,27 +55,12 @@
     readingTimeMinutes: 0,
   });
 
-  // Search state
-  let showSearchBar: boolean = $state(false);
   let editorRef: import("@tiptap/core").Editor | null = $state(null);
-
-  // Outline state
-  let showOutline: boolean = $state(false);
   let outlineHeadings: OutlineHeading[] = $state([]);
   let outlineActiveId: string | null = $state(null);
-
-  // Focus mode state (combined focus + typewriter)
-  let focusMode: boolean = $state(false);
-
-  // Command palette state
-  let showCommandPalette: boolean = $state(false);
-
-  // Custom Shortcuts modal
-  let showShortcutModal: boolean = $state(false);
   let currentShortcuts = $state(loadShortcuts());
 
-  // Derived
-  let fileName = $derived(deriveFileName(filePath));
+  let fileName = $derived(deriveFileName(fileState.filePath));
 
   // Command palette handlers
   let commandHandlers: CommandHandlers = $derived({
@@ -96,28 +69,32 @@
     onSave: handleSave,
     onSaveAs: handleSaveAs,
     onClose: handleClose,
-    onToggleTheme: toggleTheme,
+    onToggleTheme: () => {
+        toggleTheme();
+        document.documentElement.setAttribute("data-theme", uiState.theme);
+        localStorage.setItem("md-lite-theme", uiState.theme);
+    },
     onToggleFocusMode: () => {
-      focusMode = !focusMode;
-      localStorage.setItem("md-lite-focus", String(focusMode));
+      uiState.focusMode = !uiState.focusMode;
+      localStorage.setItem("md-lite-focus", String(uiState.focusMode));
     },
     onGoHome: handleGoHome,
     onCommandPalette: () => {
-      showCommandPalette = true;
+      uiState.showCommandPalette = true;
     },
     onOpenShortcutConfig: () => {
-      showCommandPalette = false;
-      showShortcutModal = true;
+      uiState.showCommandPalette = false;
+      uiState.showShortcutModal = true;
     },
     onFind: () => {
-      showCommandPalette = false;
-      showSearchBar = !showSearchBar;
+      uiState.showCommandPalette = false;
+      uiState.showSearchBar = !uiState.showSearchBar;
     },
     onToggleOutline: () => {
-      const hasFile = !!filePath || content !== "";
+      const hasFile = !!fileState.filePath || fileState.content !== "";
       if (!hasFile) return;
-      showCommandPalette = false;
-      showOutline = !showOutline;
+      uiState.showCommandPalette = false;
+      uiState.showOutline = !uiState.showOutline;
     },
     onSetHeading: (level: number) => {
       if (!editorRef) return;
@@ -146,10 +123,9 @@
   });
 
   async function refreshRecents() {
-    recentFiles = getRecentFiles();
-
-    const paths = recentFiles.map((r) => r.path);
-    const names = recentFiles.map((r) => r.name);
+    fileState.recentFiles = getRecentFiles();
+    const paths = fileState.recentFiles.map((r) => r.path);
+    const names = fileState.recentFiles.map((r) => r.name);
     try {
       await updateRecentMenu(paths, names);
     } catch (err) {
@@ -157,39 +133,14 @@
     }
   }
 
-  // Theme
-  function toggleTheme() {
-    const result = toggleThemeLogic({
-      content,
-      filePath,
-      isDirty,
-      isSaving,
-      theme,
-      saveTimer,
-    });
-    theme = result.theme;
-    document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("md-lite-theme", theme);
-  }
-
-  // Save helpers
-  async function doPerformSave() {
-    const state = { content, filePath, isDirty, isSaving, theme, saveTimer };
-    const result = await performSave(state);
-    isDirty = result.isDirty;
-    isSaving = result.isSaving;
-  }
-
   function doScheduleAutoSave() {
-    const state = { content, filePath, isDirty, isSaving, theme, saveTimer };
-    const result = scheduleAutoSave(state, doPerformSave);
-    saveTimer = result.saveTimer;
+    scheduleAutoSave(performSave);
   }
 
   function doScheduleShadowSave() {
-    shadowTimer = scheduleShadowSave(shadowTimer, filePath, async () => {
+    scheduleShadowSave(async () => {
       try {
-        await shadowSave(filePath, content);
+        await shadowSave(fileState.filePath, fileState.content);
       } catch (err) {
         console.error("Shadow save failed:", err);
       }
@@ -200,28 +151,23 @@
     telemetryWorker?.postMessage({ text });
   }
 
-  function handleContentUpdate(markdown: string) {
-    const state = { content, filePath, isDirty, isSaving, theme, saveTimer };
-    const result = handleContentUpdateLogic(state, markdown);
-    content = result.content;
-    isDirty = result.isDirty;
+  function onContentUpdateWrapper(markdown: string) {
+    handleContentUpdate(markdown);
     doScheduleAutoSave();
     doScheduleShadowSave();
     updateTelemetry(markdown);
   }
-
-  // --- Handlers ---
 
   async function handleNew() {
     try {
       const path = await createNewFile();
       if (!path) return;
 
-      if (saveTimer) clearTimeout(saveTimer);
-      if (shadowTimer) clearTimeout(shadowTimer);
-      filePath = path;
-      content = "";
-      isDirty = false;
+      if (fileState.saveTimer) clearTimeout(fileState.saveTimer);
+      if (fileState.shadowTimer) clearTimeout(fileState.shadowTimer);
+      fileState.filePath = path;
+      fileState.content = "";
+      fileState.isDirty = false;
       addRecentFile(path);
       refreshRecents();
       dismissShadow().catch(() => {});
@@ -236,11 +182,11 @@
       const result = await openFileDialog();
       if (!result) return;
 
-      if (saveTimer) clearTimeout(saveTimer);
-      if (shadowTimer) clearTimeout(shadowTimer);
-      filePath = result.path;
-      content = result.content;
-      isDirty = false;
+      if (fileState.saveTimer) clearTimeout(fileState.saveTimer);
+      if (fileState.shadowTimer) clearTimeout(fileState.shadowTimer);
+      fileState.filePath = result.path;
+      fileState.content = result.content;
+      fileState.isDirty = false;
       addRecentFile(result.path);
       refreshRecents();
       dismissShadow().catch(() => {});
@@ -253,11 +199,11 @@
   async function handleOpenRecent(path: string) {
     try {
       const fileContent = await readFile(path);
-      if (saveTimer) clearTimeout(saveTimer);
-      if (shadowTimer) clearTimeout(shadowTimer);
-      filePath = path;
-      content = fileContent;
-      isDirty = false;
+      if (fileState.saveTimer) clearTimeout(fileState.saveTimer);
+      if (fileState.shadowTimer) clearTimeout(fileState.shadowTimer);
+      fileState.filePath = path;
+      fileState.content = fileContent;
+      fileState.isDirty = false;
       addRecentFile(path);
       refreshRecents();
       dismissShadow().catch(() => {});
@@ -270,15 +216,14 @@
   }
 
   async function handleSave() {
-    if (saveTimer) clearTimeout(saveTimer);
-    if (shadowTimer) clearTimeout(shadowTimer);
+    if (fileState.saveTimer) clearTimeout(fileState.saveTimer);
+    if (fileState.shadowTimer) clearTimeout(fileState.shadowTimer);
 
-    // no path yet → prompt where to save
-    if (!filePath && content) {
-      const path = await saveFileAs(content);
+    if (!fileState.filePath && fileState.content) {
+      const path = await saveFileAs(fileState.content);
       if (path) {
-        filePath = path;
-        isDirty = false;
+        fileState.filePath = path;
+        fileState.isDirty = false;
         addRecentFile(path);
         refreshRecents();
         dismissShadow().catch(() => {});
@@ -286,18 +231,18 @@
       return;
     }
 
-    await doPerformSave();
+    await performSave();
     dismissShadow().catch(() => {});
   }
 
   async function handleSaveAs() {
     try {
-      const name = deriveFileName(filePath);
-      const path = await saveFileAs(content, name);
+      const name = deriveFileName(fileState.filePath);
+      const path = await saveFileAs(fileState.content, name);
       if (!path) return;
 
-      filePath = path;
-      isDirty = false;
+      fileState.filePath = path;
+      fileState.isDirty = false;
       addRecentFile(path);
       refreshRecents();
     } catch (err) {
@@ -306,13 +251,12 @@
   }
 
   async function handleRename(newName: string) {
-    if (!filePath) {
+    if (!fileState.filePath) {
       try {
-        // If file is unsaved, rename acts like a "Save As"
-        const path = await saveFileAs(content, newName);
+        const path = await saveFileAs(fileState.content, newName);
         if (path) {
-          filePath = path;
-          isDirty = false;
+          fileState.filePath = path;
+          fileState.isDirty = false;
           addRecentFile(path);
           refreshRecents();
           dismissShadow().catch(() => {});
@@ -324,9 +268,9 @@
     }
 
     try {
-      const newPath = await renameFile(filePath, newName);
-      const oldPath = filePath;
-      filePath = newPath;
+      const newPath = await renameFile(fileState.filePath, newName);
+      const oldPath = fileState.filePath;
+      fileState.filePath = newPath;
       removeRecentFile(oldPath);
       addRecentFile(newPath);
       refreshRecents();
@@ -336,34 +280,32 @@
   }
 
   async function handleClose() {
-    if (isDirty && filePath) await doPerformSave();
+    if (fileState.isDirty && fileState.filePath) await performSave();
     await closeWindow();
   }
 
   async function handleGoHome() {
-    if (isDirty && filePath) {
-      await doPerformSave();
+    if (fileState.isDirty && fileState.filePath) {
+      await performSave();
     }
-    filePath = "";
-    content = "";
-    isDirty = false;
+    fileState.filePath = "";
+    fileState.content = "";
+    fileState.isDirty = false;
     dismissShadow().catch(() => {});
     updateTelemetry("");
   }
 
-  // --- Recovery handlers ---
-
   async function handleRestore() {
-    if (!recoveryData) return;
+    if (!fileState.recoveryData) return;
     try {
-      filePath = recoveryData.original_path;
-      content = recoveryData.shadow_content;
-      isDirty = true;
-      recoveryData = null;
+      fileState.filePath = fileState.recoveryData.original_path;
+      fileState.content = fileState.recoveryData.shadow_content;
+      fileState.isDirty = true;
+      fileState.recoveryData = null;
       await dismissShadow();
-      updateTelemetry(content);
-      if (filePath) {
-        addRecentFile(filePath);
+      updateTelemetry(fileState.content);
+      if (fileState.filePath) {
+        addRecentFile(fileState.filePath);
         refreshRecents();
       }
     } catch (err) {
@@ -372,7 +314,7 @@
   }
 
   async function handleDismiss() {
-    recoveryData = null;
+    fileState.recoveryData = null;
     try {
       await dismissShadow();
     } catch (err) {
@@ -387,34 +329,28 @@
   }
 
   onMount(async () => {
-    const saved = localStorage.getItem("md-lite-theme") as
-      | "dark"
-      | "light"
-      | null;
+    const saved = localStorage.getItem("md-lite-theme") as "dark" | "light" | null;
     if (saved) {
-      theme = saved;
-      document.documentElement.setAttribute("data-theme", theme);
+      uiState.theme = saved;
+      document.documentElement.setAttribute("data-theme", uiState.theme);
     }
 
-    // Load focus mode preference
     const savedFocus = localStorage.getItem("md-lite-focus");
     if (savedFocus === "true") {
-      focusMode = true;
+      uiState.focusMode = true;
     }
 
     refreshRecents();
 
-    // Initialize telemetry Web Worker
     telemetryWorker = new TelemetryWorker();
     telemetryWorker.onmessage = (event: MessageEvent<TelemetryResult>) => {
       telemetry = event.data;
     };
 
-    // Check for crash recovery
     try {
       const recovery = await checkShadowRecovery();
       if (recovery) {
-        recoveryData = recovery;
+        fileState.recoveryData = recovery;
       }
     } catch (err) {
       console.error("Recovery check failed:", err);
@@ -436,24 +372,24 @@
   onDestroy(() => {
     cleanupShortcuts?.();
     unlistenMenu.forEach((u) => u());
-    if (saveTimer) clearTimeout(saveTimer);
-    if (shadowTimer) clearTimeout(shadowTimer);
+    if (fileState.saveTimer) clearTimeout(fileState.saveTimer);
+    if (fileState.shadowTimer) clearTimeout(fileState.shadowTimer);
     telemetryWorker?.terminate();
   });
 </script>
 
 <TitleBar
   {fileName}
-  {isDirty}
-  {isSaving}
-  {theme}
-  hasFile={!!filePath || content !== ""}
+  isDirty={fileState.isDirty}
+  isSaving={fileState.isSaving}
+  theme={uiState.theme}
+  hasFile={!!fileState.filePath || fileState.content !== ""}
   onToggleTheme={toggleTheme}
   onRename={handleRename}
   onToggleOutline={commandHandlers.onToggleOutline}
 />
 
-{#if recoveryData}
+{#if fileState.recoveryData}
   <div class="recovery-banner" id="recovery-banner">
     <div class="recovery-content">
       <svg
@@ -471,8 +407,8 @@
         <line x1="12" y1="16" x2="12.01" y2="16" />
       </svg>
       <span class="recovery-text">
-        Unsaved session detected{recoveryData.original_path
-          ? ` from ${deriveFileName(recoveryData.original_path)}`
+        Unsaved session detected{fileState.recoveryData.original_path
+          ? ` from ${deriveFileName(fileState.recoveryData.original_path)}`
           : ""}
       </span>
     </div>
@@ -487,21 +423,21 @@
   </div>
 {/if}
 
-{#if !!filePath || content !== ""}
+{#if !!fileState.filePath || fileState.content !== ""}
   <FormatBar editor={editorRef} />
 {/if}
 
 <main class="main-content">
   <SearchBar
     editor={editorRef}
-    visible={showSearchBar}
-    onClose={() => (showSearchBar = false)}
+    visible={uiState.showSearchBar}
+    onClose={() => (uiState.showSearchBar = false)}
   />
   <WysiwygEditor
-    {content}
-    {filePath}
-    {focusMode}
-    onUpdate={handleContentUpdate}
+    content={fileState.content}
+    filePath={fileState.filePath}
+    focusMode={uiState.focusMode}
+    onUpdate={onContentUpdateWrapper}
     onEditorReady={(e) => (editorRef = e)}
     onOutlineChange={(headings, activeId) => {
       outlineHeadings = headings;
@@ -510,7 +446,7 @@
   />
 
   <OutlinePanel
-    visible={showOutline}
+    visible={uiState.showOutline}
     headings={outlineHeadings}
     activeId={outlineActiveId}
     onJump={(pos) => {
@@ -518,10 +454,10 @@
         scrollToHeading(editorRef, pos);
       }
     }}
-    onClose={() => (showOutline = false)}
+    onClose={() => (uiState.showOutline = false)}
   />
 
-  {#if !filePath && content === ""}
+  {#if !fileState.filePath && fileState.content === ""}
     <div class="empty-state">
       <div class="empty-icon">
         <svg
@@ -584,11 +520,11 @@
         </button>
       </div>
 
-      {#if recentFiles.length > 0}
+      {#if fileState.recentFiles.length > 0}
         <div class="recent-section">
           <p class="recent-heading">Recent</p>
           <ul class="recent-list">
-            {#each recentFiles as file}
+            {#each fileState.recentFiles as file}
               <li>
                 <button
                   class="recent-item"
@@ -655,19 +591,19 @@
   words={telemetry.words}
   characters={telemetry.characters}
   readingTimeMinutes={telemetry.readingTimeMinutes}
-  {focusMode}
+  focusMode={uiState.focusMode}
 />
 
 <CommandPalette
-  visible={showCommandPalette}
+  visible={uiState.showCommandPalette}
   handlers={commandHandlers}
   config={currentShortcuts}
-  onClose={() => (showCommandPalette = false)}
+  onClose={() => (uiState.showCommandPalette = false)}
 />
 
 <ShortcutConfigModal
-  visible={showShortcutModal}
-  onClose={() => (showShortcutModal = false)}
+  visible={uiState.showShortcutModal}
+  onClose={() => (uiState.showShortcutModal = false)}
   onSave={reloadShortcuts}
 />
 
