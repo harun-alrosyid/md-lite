@@ -265,8 +265,8 @@ export function filterCommands(
         return terms.every((term) => text.includes(term));
     });
 
-    // Ensure the custom-shortcuts command is always at the top
-    const customShortcutsCmd = commands.find(c => c.id === "custom-shortcuts");
+    // Ensure the custom-shortcuts command is always at the top IF it matches the filter
+    const customShortcutsCmd = result.find(c => c.id === "custom-shortcuts");
     if (customShortcutsCmd) {
         const filteredWithoutSettings = result.filter(c => c.id !== "custom-shortcuts");
         return [customShortcutsCmd, ...filteredWithoutSettings];
