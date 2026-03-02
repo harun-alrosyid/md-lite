@@ -7,7 +7,11 @@ import { uiState } from './lib/stores/ui.svelte';
 
 // Mock Web Animations API to prevent JSDOM errors during Svelte transitions
 if (typeof Element !== 'undefined' && !Element.prototype.animate) {
-    Element.prototype.animate = vi.fn() as any;
+    Element.prototype.animate = vi.fn().mockReturnValue({
+        onfinish: vi.fn(),
+        cancel: vi.fn(),
+        play: vi.fn(),
+    }) as any;
 }
 
 beforeEach(() => {
@@ -33,7 +37,7 @@ beforeEach(() => {
 let capturedOnUpdate: ((markdown: string) => void) | null = null;
 let capturedOnRename: ((newName: string) => void) | null = null;
 
-vi.mock('./lib/TitleBar.svelte', () => {
+vi.mock('./lib/components/TitleBar.svelte', () => {
     return {
         default: function MockTitleBar(this: any, ...args: any[]) {
             try {
@@ -46,7 +50,7 @@ vi.mock('./lib/TitleBar.svelte', () => {
     };
 });
 
-vi.mock('./lib/WysiwygEditor.svelte', () => {
+vi.mock('./lib/components/WysiwygEditor.svelte', () => {
     return {
         default: function MockEditor(this: any, ...args: any[]) {
             try {
@@ -62,7 +66,7 @@ vi.mock('./lib/WysiwygEditor.svelte', () => {
     };
 });
 
-vi.mock('./lib/shortcuts', () => ({
+vi.mock('./lib/core/shortcuts', () => ({
     setupShortcuts: vi.fn(() => vi.fn()),
     openFileDialog: vi.fn(),
     createNewFile: vi.fn(),
@@ -78,8 +82,8 @@ vi.mock('./lib/shortcuts', () => ({
     dismissShadow: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('./lib/app-logic', async () => {
-    const actual = await vi.importActual('./lib/app-logic');
+vi.mock('./lib/core/app-logic', async () => {
+    const actual = await vi.importActual('./lib/core/app-logic');
     return actual;
 });
 
@@ -88,7 +92,7 @@ vi.mock('@tauri-apps/api/event', () => ({
 }));
 
 // Mock the Web Worker import
-vi.mock('./lib/telemetry.worker?worker', () => {
+vi.mock('./lib/workers/telemetry.worker?worker', () => {
     class MockWorker {
         postMessage = vi.fn();
         onmessage: any = null;
@@ -105,7 +109,9 @@ import {
     saveFile,
     renameFile,
     closeWindow,
-} from './lib/shortcuts';
+    dismissShadow,
+    readFile,
+} from './lib/core/shortcuts';
 
 describe('App - Core', () => {
     beforeEach(() => {
@@ -530,5 +536,132 @@ describe('App - Content Update & Auto-Save', () => {
 
         // Go home
         await handlers.onGoHome();
+    });
+});
+
+describe('App - Shadow Recovery', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        vi.useFakeTimers();
+        localStorage.clear();
+        fileState.recoveryData = null;
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    async function renderAndFlush() {
+        const result = render(App);
+        await vi.advanceTimersByTimeAsync(0);
+        await tick();
+        return result;
+    }
+
+    it('renders recovery banner when recovery data exists', async () => {
+        fileState.recoveryData = {
+            original_path: '/test/path.md',
+            shadow_content: 'recovered text',
+            shadow_modified: 123
+        };
+        await renderAndFlush();
+        expect(screen.getByText(/Unsaved session detected/)).toBeTruthy();
+        expect(screen.getByText('Restore')).toBeTruthy();
+        expect(screen.getByText('Dismiss')).toBeTruthy();
+    });
+
+    it('clicking Restore populates file state and dismisses shadow', async () => {
+        fileState.recoveryData = {
+            original_path: '/test/path.md',
+            shadow_content: 'recovered text',
+            shadow_modified: 123
+        };
+        const dismissShadowMock = dismissShadow;
+        await renderAndFlush();
+
+        screen.getByText('Restore').click();
+        await tick();
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(fileState.filePath).toBe('/test/path.md');
+        expect(fileState.content).toBe('recovered text');
+        expect(fileState.isDirty).toBe(true);
+        expect(fileState.recoveryData).toBeNull();
+        expect(dismissShadowMock).toHaveBeenCalled();
+    });
+
+    it('clicking Dismiss drops recovery data and dismisses shadow', async () => {
+        fileState.recoveryData = {
+            original_path: '/test/path.md',
+            shadow_content: 'recovered text',
+            shadow_modified: 123
+        };
+        const dismissShadowMock = dismissShadow;
+        await renderAndFlush();
+
+        screen.getByText('Dismiss').click();
+        await tick();
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(fileState.recoveryData).toBeNull();
+        expect(dismissShadowMock).toHaveBeenCalled();
+    });
+});
+
+describe('App - Recent Files', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        vi.useFakeTimers();
+        localStorage.clear();
+        fileState.recentFiles = [];
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    async function renderAndFlush() {
+        const result = render(App);
+        await vi.advanceTimersByTimeAsync(0);
+        await tick();
+        return result;
+    }
+
+    it('opens recent file successfully via UI click', async () => {
+        const readFileMock = vi.mocked(readFile);
+        readFileMock.mockResolvedValue('recent content');
+
+        // App.svelte calls getRecentFiles() on mount which reads from localStorage.
+        localStorage.setItem("md-lite-recent", JSON.stringify([{ path: '/recent.md', name: 'recent.md', folder: '/', openedAt: Date.now() }]));
+
+        await renderAndFlush();
+
+        const recentBtn = screen.getByText('recent.md');
+        recentBtn.click();
+
+        await tick();
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(readFileMock).toHaveBeenCalledWith('/recent.md');
+        expect(fileState.filePath).toBe('/recent.md');
+        expect(fileState.content).toBe('recent content');
+    });
+
+    it('handles open recent error gracefully', async () => {
+        const readFileMock = vi.mocked(readFile);
+        readFileMock.mockRejectedValue(new Error('not found'));
+        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+
+        localStorage.setItem("md-lite-recent", JSON.stringify([{ path: '/recent.md', name: 'recent.md', folder: '/', openedAt: Date.now() }]));
+
+        await renderAndFlush();
+
+        screen.getByText('recent.md').click();
+
+        await tick();
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(consoleSpy).toHaveBeenCalledWith('Open recent failed:', expect.any(Error));
+        consoleSpy.mockRestore();
     });
 });
