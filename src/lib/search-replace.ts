@@ -155,7 +155,7 @@ export const SearchReplace = Extension.create<{}, SearchReplaceStorage>({
 
             goToNextMatch:
                 () =>
-                    ({ editor, dispatch }) => {
+                    ({ tr, dispatch }) => {
                         const { results } = this.storage;
                         if (results.length === 0) return false;
 
@@ -164,19 +164,12 @@ export const SearchReplace = Extension.create<{}, SearchReplaceStorage>({
 
                         if (dispatch) {
                             const match = results[this.storage.currentIndex];
-                            const tr = editor.state.tr
-                                .setMeta(searchReplacePluginKey, {
-                                    updated: true,
-                                })
+                            tr.setMeta(searchReplacePluginKey, { updated: true })
                                 .scrollIntoView();
 
                             tr.setSelection(
-                                TextSelection.near(
-                                    tr.doc.resolve(match.from),
-                                ),
+                                TextSelection.near(tr.doc.resolve(match.from))
                             );
-
-                            dispatch(tr);
                         }
 
                         return true;
@@ -184,7 +177,7 @@ export const SearchReplace = Extension.create<{}, SearchReplaceStorage>({
 
             goToPreviousMatch:
                 () =>
-                    ({ editor, dispatch }) => {
+                    ({ tr, dispatch }) => {
                         const { results } = this.storage;
                         if (results.length === 0) return false;
 
@@ -194,19 +187,12 @@ export const SearchReplace = Extension.create<{}, SearchReplaceStorage>({
 
                         if (dispatch) {
                             const match = results[this.storage.currentIndex];
-                            const tr = editor.state.tr
-                                .setMeta(searchReplacePluginKey, {
-                                    updated: true,
-                                })
+                            tr.setMeta(searchReplacePluginKey, { updated: true })
                                 .scrollIntoView();
 
                             tr.setSelection(
-                                TextSelection.near(
-                                    tr.doc.resolve(match.from),
-                                ),
+                                TextSelection.near(tr.doc.resolve(match.from))
                             );
-
-                            dispatch(tr);
                         }
 
                         return true;
@@ -214,7 +200,7 @@ export const SearchReplace = Extension.create<{}, SearchReplaceStorage>({
 
             replaceCurrentMatch:
                 () =>
-                    ({ editor, dispatch }) => {
+                    ({ editor, tr, dispatch }) => {
                         const { results, currentIndex, replaceTerm } =
                             this.storage;
                         if (results.length === 0 || currentIndex < 0) return false;
@@ -222,12 +208,11 @@ export const SearchReplace = Extension.create<{}, SearchReplaceStorage>({
                         const match = results[currentIndex];
 
                         if (dispatch) {
-                            const tr = editor.state.tr.insertText(
+                            tr.insertText(
                                 replaceTerm,
                                 match.from,
                                 match.to,
                             );
-                            dispatch(tr);
                         }
 
                         // Re-scan after replacement
@@ -240,20 +225,18 @@ export const SearchReplace = Extension.create<{}, SearchReplaceStorage>({
 
             replaceAllMatches:
                 () =>
-                    ({ editor, dispatch }) => {
+                    ({ editor, tr, dispatch }) => {
                         const { results, replaceTerm } = this.storage;
                         if (results.length === 0) return false;
 
                         if (dispatch) {
-                            let tr = editor.state.tr;
                             for (let i = results.length - 1; i >= 0; i--) {
-                                tr = tr.insertText(
+                                tr.insertText(
                                     replaceTerm,
                                     results[i].from,
                                     results[i].to,
                                 );
                             }
-                            dispatch(tr);
                         }
 
                         setTimeout(() => {
@@ -265,18 +248,17 @@ export const SearchReplace = Extension.create<{}, SearchReplaceStorage>({
 
             clearSearch:
                 () =>
-                    ({ editor, dispatch }) => {
+                    ({ tr, dispatch }) => {
                         this.storage.searchTerm = "";
                         this.storage.replaceTerm = "";
                         this.storage.currentIndex = -1;
                         this.storage.results = [];
 
                         if (dispatch) {
-                            const tr = editor.state.tr.setMeta(
+                            tr.setMeta(
                                 searchReplacePluginKey,
                                 { updated: true },
                             );
-                            dispatch(tr);
                         }
 
                         return true;
