@@ -1,13 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
-    createInitialState,
     deriveFileName,
     toggleTheme,
     performSave,
     handleContentUpdate,
     scheduleAutoSave,
-    type AppState,
+    scheduleShadowSave,
 } from './app-logic';
+import { fileState } from './stores/file.svelte';
+import { uiState } from './stores/ui.svelte';
 
 // Mock the shortcuts module so saveFile is a vi.fn()
 vi.mock('./shortcuts', () => ({
@@ -15,18 +16,6 @@ vi.mock('./shortcuts', () => ({
 }));
 
 import { saveFile } from './shortcuts';
-
-describe('createInitialState', () => {
-    it('returns default state', () => {
-        const state = createInitialState();
-        expect(state.content).toBe('');
-        expect(state.filePath).toBe('');
-        expect(state.isDirty).toBe(false);
-        expect(state.isSaving).toBe(false);
-        expect(state.theme).toBe('dark');
-        expect(state.saveTimer).toBeNull();
-    });
-});
 
 describe('deriveFileName', () => {
     it('returns "Untitled" for empty path', () => {
@@ -53,132 +42,99 @@ describe('deriveFileName', () => {
 });
 
 describe('toggleTheme', () => {
+    beforeEach(() => {
+        uiState.theme = 'dark';
+    });
+
     it('switches dark to light', () => {
-        const state = createInitialState();
-        const result = toggleTheme(state);
-        expect(result.theme).toBe('light');
+        toggleTheme();
+        expect(uiState.theme).toBe('light');
     });
 
     it('switches light to dark', () => {
-        const state: AppState = { ...createInitialState(), theme: 'light' };
-        const result = toggleTheme(state);
-        expect(result.theme).toBe('dark');
+        uiState.theme = 'light';
+        toggleTheme();
+        expect(uiState.theme).toBe('dark');
     });
 
     it('round-trip returns original theme', () => {
-        const state = createInitialState();
-        const result = toggleTheme(toggleTheme(state));
-        expect(result.theme).toBe('dark');
-    });
-
-    it('does not mutate original state', () => {
-        const state = createInitialState();
-        const result = toggleTheme(state);
-        expect(state.theme).toBe('dark');
-        expect(result.theme).toBe('light');
+        toggleTheme();
+        toggleTheme();
+        expect(uiState.theme).toBe('dark');
     });
 });
 
 describe('handleContentUpdate', () => {
-    it('sets content and isDirty', () => {
-        const state = createInitialState();
-        const result = handleContentUpdate(state, '# Hello');
-        expect(result.content).toBe('# Hello');
-        expect(result.isDirty).toBe(true);
+    beforeEach(() => {
+        fileState.content = '';
+        fileState.isDirty = false;
     });
 
-    it('preserves other state fields', () => {
-        const state: AppState = {
-            ...createInitialState(),
-            filePath: '/test.md',
-            theme: 'light',
-        };
-        const result = handleContentUpdate(state, 'new content');
-        expect(result.filePath).toBe('/test.md');
-        expect(result.theme).toBe('light');
-    });
-
-    it('does not mutate original state', () => {
-        const state = createInitialState();
-        handleContentUpdate(state, 'changed');
-        expect(state.content).toBe('');
-        expect(state.isDirty).toBe(false);
+    it('sets content and isDirty on global store', () => {
+        handleContentUpdate('# Hello');
+        expect(fileState.content).toBe('# Hello');
+        expect(fileState.isDirty).toBe(true);
     });
 });
 
 describe('performSave', () => {
     beforeEach(() => {
         vi.mocked(saveFile).mockReset();
+        fileState.filePath = '';
+        fileState.content = '';
+        fileState.isDirty = false;
+        fileState.isSaving = false;
     });
 
     it('skips save when no filePath', async () => {
-        const state = createInitialState();
-        const result = await performSave(state);
-        expect(result).toBe(state);
+        await performSave();
         expect(saveFile).not.toHaveBeenCalled();
     });
 
     it('skips save when not dirty', async () => {
-        const state: AppState = { ...createInitialState(), filePath: '/test.md' };
-        const result = await performSave(state);
-        expect(result).toBe(state);
+        fileState.filePath = '/test.md';
+        await performSave();
         expect(saveFile).not.toHaveBeenCalled();
     });
 
-    it('saves successfully and clears dirty', async () => {
+    it('saves successfully and clears dirty flag', async () => {
         vi.mocked(saveFile).mockResolvedValue(undefined);
-        const state: AppState = {
-            ...createInitialState(),
-            filePath: '/test.md',
-            content: '# Hello',
-            isDirty: true,
-        };
+        fileState.filePath = '/test.md';
+        fileState.content = '# Hello';
+        fileState.isDirty = true;
 
-        const result = await performSave(state);
+        await performSave();
 
         expect(saveFile).toHaveBeenCalledWith('/test.md', '# Hello');
-        expect(result.isDirty).toBe(false);
-        expect(result.isSaving).toBe(false);
+        expect(fileState.isDirty).toBe(false);
+        expect(fileState.isSaving).toBe(false);
     });
 
     it('handles save error gracefully', async () => {
         const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
         vi.mocked(saveFile).mockRejectedValue(new Error('disk full'));
-        const state: AppState = {
-            ...createInitialState(),
-            filePath: '/test.md',
-            content: '# Hello',
-            isDirty: true,
-        };
 
-        const result = await performSave(state);
+        fileState.filePath = '/test.md';
+        fileState.content = '# Hello';
+        fileState.isDirty = true;
+
+        await performSave();
 
         expect(consoleSpy).toHaveBeenCalledWith(
             'Save failed:',
             expect.any(Error),
         );
-        expect(result.isSaving).toBe(false);
+        expect(fileState.isSaving).toBe(false);
         consoleSpy.mockRestore();
-    });
-
-    it('does not mutate original state', async () => {
-        vi.mocked(saveFile).mockResolvedValue(undefined);
-        const state: AppState = {
-            ...createInitialState(),
-            filePath: '/test.md',
-            content: '# Hello',
-            isDirty: true,
-        };
-
-        await performSave(state);
-        expect(state.isDirty).toBe(true);
-        expect(state.isSaving).toBe(false);
     });
 });
 
 describe('scheduleAutoSave', () => {
     beforeEach(() => {
         vi.useFakeTimers();
+        if (fileState.saveTimer) clearTimeout(fileState.saveTimer);
+        fileState.saveTimer = null;
+        fileState.filePath = '';
     });
 
     afterEach(() => {
@@ -187,17 +143,17 @@ describe('scheduleAutoSave', () => {
 
     it('does nothing without filePath', () => {
         const doSave = vi.fn();
-        const state = createInitialState();
-        const result = scheduleAutoSave(state, doSave);
-        expect(result.saveTimer).toBeNull();
+        scheduleAutoSave(doSave);
+        expect(fileState.saveTimer).toBeNull();
     });
 
     it('schedules save after delay', () => {
         const doSave = vi.fn();
-        const state: AppState = { ...createInitialState(), filePath: '/test.md' };
-        const result = scheduleAutoSave(state, doSave, 1000);
+        fileState.filePath = '/test.md';
 
-        expect(result.saveTimer).not.toBeNull();
+        scheduleAutoSave(doSave, 1000);
+
+        expect(fileState.saveTimer).not.toBeNull();
         expect(doSave).not.toHaveBeenCalled();
 
         vi.advanceTimersByTime(1000);
@@ -207,23 +163,22 @@ describe('scheduleAutoSave', () => {
     it('clears previous timer before scheduling new one', () => {
         const doSave1 = vi.fn();
         const doSave2 = vi.fn();
-        const state: AppState = { ...createInitialState(), filePath: '/test.md' };
+        fileState.filePath = '/test.md';
 
-        const result1 = scheduleAutoSave(state, doSave1, 1000);
-        const result2 = scheduleAutoSave(result1, doSave2, 1000);
+        scheduleAutoSave(doSave1, 1000);
+        scheduleAutoSave(doSave2, 1000);
 
         vi.advanceTimersByTime(1000);
 
         // doSave1 should have been cleared, only doSave2 should fire
         expect(doSave2).toHaveBeenCalledOnce();
-        // doSave1 timer was cleared
         expect(doSave1).not.toHaveBeenCalled();
     });
 
     it('uses custom delay', () => {
         const doSave = vi.fn();
-        const state: AppState = { ...createInitialState(), filePath: '/test.md' };
-        scheduleAutoSave(state, doSave, 500);
+        fileState.filePath = '/test.md';
+        scheduleAutoSave(doSave, 500);
 
         vi.advanceTimersByTime(499);
         expect(doSave).not.toHaveBeenCalled();
