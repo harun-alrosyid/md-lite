@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import OutlinePanel from './OutlinePanel.svelte';
-import type { OutlineHeading } from './outline';
+import type { OutlineHeading } from '../core/outline';
 
 describe('OutlinePanel', () => {
     const defaultProps = {

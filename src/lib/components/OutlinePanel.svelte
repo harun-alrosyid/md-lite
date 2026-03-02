@@ -2,7 +2,7 @@
     import { onMount, tick } from "svelte";
     import { fly } from "svelte/transition";
     import { cubicOut } from "svelte/easing";
-    import type { OutlineHeading } from "./outline";
+    import type { OutlineHeading } from "../core/outline";
 
     type Props = {
         visible: boolean;
