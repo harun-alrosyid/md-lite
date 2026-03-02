@@ -1,8 +1,8 @@
 import Image from '@tiptap/extension-image';
 import { mergeAttributes, nodeInputRule } from '@tiptap/core';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { resolveLocalPath, getDirectory } from './imagePath';
-import { isTauri } from './env';
+import { resolveLocalPath, getDirectory } from '../core/imagePath';
+import { isTauri } from '../core/env';
 
 export interface CustomImageOptions {
     HTMLAttributes: Record<string, any>;
