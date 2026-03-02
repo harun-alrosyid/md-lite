@@ -499,6 +499,7 @@
   />
   <WysiwygEditor
     {content}
+    {filePath}
     {focusMode}
     onUpdate={handleContentUpdate}
     onEditorReady={(e) => (editorRef = e)}

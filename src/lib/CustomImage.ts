@@ -23,6 +23,7 @@ export const CustomImage = Image.extend<CustomImageOptions>({
 
         if (src && isTauri) {
             console.log("[CustomImage] src:", src, "isTauri is true");
+
             // Check if it's a local/relative path
             if (!src.startsWith('http://') && !src.startsWith('https://') && !src.startsWith('data:') && !src.startsWith('asset://')) {
                 const currentFile = this.options.currentFilePath();
@@ -50,10 +51,10 @@ export const CustomImage = Image.extend<CustomImageOptions>({
     addInputRules() {
         return [
             nodeInputRule({
-                find: /!\[(.*)\]\((.*)\)\s$/,
+                find: /(?:^|\s)(!\[(.*?)\]\((.*?)\))\s$/,
                 type: this.type,
                 getAttributes: (match: any[]) => {
-                    const [, alt, src] = match;
+                    const [, , alt, src] = match;
                     return { src, alt };
                 },
             }),
