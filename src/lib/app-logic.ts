@@ -1,64 +1,42 @@
 import { saveFile } from "./shortcuts";
-
-export interface AppState {
-    content: string;
-    filePath: string;
-    isDirty: boolean;
-    isSaving: boolean;
-    theme: "dark" | "light";
-    saveTimer: ReturnType<typeof setTimeout> | null;
-}
-
-export function createInitialState(): AppState {
-    return {
-        content: "",
-        filePath: "",
-        isDirty: false,
-        isSaving: false,
-        theme: "dark",
-        saveTimer: null,
-    };
-}
+import { fileState } from "./stores/file.svelte";
+import { uiState } from "./stores/ui.svelte";
 
 export function deriveFileName(filePath: string): string {
     return filePath ? filePath.split("/").pop() || "Untitled" : "Untitled";
 }
 
-export function toggleTheme(state: AppState): AppState {
-    const newTheme = state.theme === "dark" ? "light" : "dark";
-    return { ...state, theme: newTheme };
+export function toggleTheme(): void {
+    uiState.theme = uiState.theme === "dark" ? "light" : "dark";
 }
 
-export async function performSave(state: AppState): Promise<AppState> {
-    if (!state.filePath || !state.isDirty) return state;
+export async function performSave(): Promise<void> {
+    if (!fileState.filePath || !fileState.isDirty) return;
 
-    const newState = { ...state, isSaving: true };
+    fileState.isSaving = true;
     try {
-        await saveFile(state.filePath, state.content);
-        return { ...newState, isDirty: false, isSaving: false };
+        await saveFile(fileState.filePath, fileState.content);
+        fileState.isDirty = false;
+        fileState.isSaving = false;
     } catch (err) {
         console.error("Save failed:", err);
-        return { ...newState, isSaving: false };
+        fileState.isSaving = false;
     }
 }
 
-export function handleContentUpdate(
-    state: AppState,
-    markdown: string,
-): AppState {
-    return { ...state, content: markdown, isDirty: true };
+export function handleContentUpdate(markdown: string): void {
+    fileState.content = markdown;
+    fileState.isDirty = true;
 }
 
 export function scheduleAutoSave(
-    state: AppState,
     doSave: () => Promise<void>,
     delay: number = 1000,
-): AppState {
-    if (state.saveTimer) clearTimeout(state.saveTimer);
-    if (!state.filePath) return state;
+): void {
+    if (fileState.saveTimer) clearTimeout(fileState.saveTimer);
+    if (!fileState.filePath) return;
 
-    const timer = setTimeout(doSave, delay);
-    return { ...state, saveTimer: timer };
+    fileState.saveTimer = setTimeout(doSave, delay);
 }
 
 /**
@@ -66,15 +44,13 @@ export function scheduleAutoSave(
  * Uses a separate timer from the main auto-save.
  */
 export function scheduleShadowSave(
-    currentTimer: ReturnType<typeof setTimeout> | null,
-    filePath: string,
     doShadow: () => Promise<void>,
     delay: number = 3000,
-): ReturnType<typeof setTimeout> | null {
-    if (currentTimer) clearTimeout(currentTimer);
-    if (!filePath) return null;
+): void {
+    if (fileState.shadowTimer) clearTimeout(fileState.shadowTimer);
+    if (!fileState.filePath) return;
 
-    return setTimeout(doShadow, delay);
+    fileState.shadowTimer = setTimeout(doShadow, delay);
 }
 
 // --- Recent files (localStorage) ---
