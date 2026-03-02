@@ -6,7 +6,7 @@
         loadShortcuts,
         saveShortcuts,
         type ShortcutConfig,
-    } from "./shortcutStore";
+    } from "../core/shortcutStore";
 
     export let visible: boolean;
     export let onClose: () => void;

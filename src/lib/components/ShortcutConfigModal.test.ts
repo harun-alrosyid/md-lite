@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, fireEvent, screen } from '@testing-library/svelte';
 import ShortcutConfigModal from './ShortcutConfigModal.svelte';
-import * as shortcutStore from './shortcutStore';
+import * as shortcutStore from '../core/shortcutStore';
 
-vi.mock('./shortcutStore', async () => {
-    const actual = await vi.importActual('./shortcutStore') as any;
+vi.mock('../core/shortcutStore', async () => {
+    const actual = await vi.importActual('../core/shortcutStore') as any;
     return {
         ...actual,
         loadShortcuts: vi.fn(),
