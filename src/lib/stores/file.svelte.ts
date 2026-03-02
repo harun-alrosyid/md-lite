@@ -1,5 +1,5 @@
-import type { ShadowRecovery } from "../shortcuts";
-import type { RecentFile } from "../app-logic";
+import type { ShadowRecovery } from "../core/shortcuts";
+import type { RecentFile } from "../core/app-logic";
 
 export const fileState = $state({
     content: "",
