@@ -73,3 +73,56 @@ pub fn update_recent_menu(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_read_file() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("test_read.txt");
+        fs::write(&file_path, "hello world").unwrap();
+
+        let result = read_file(file_path.to_string_lossy().to_string());
+        assert_eq!(result.unwrap(), "hello world");
+    }
+
+    #[test]
+    fn test_read_file_error() {
+        let result = read_file("does_not_exist.txt".to_string());
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_save_file() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("sub").join("test_save.txt");
+
+        let result = save_file(file_path.to_string_lossy().to_string(), "new content".to_string()).await;
+        assert!(result.is_ok());
+
+        assert_eq!(fs::read_to_string(&file_path).unwrap(), "new content");
+    }
+
+    #[test]
+    fn test_rename_file() {
+        let dir = tempdir().unwrap();
+        let old_path = dir.path().join("old.txt");
+        let new_path = dir.path().join("new.txt");
+        fs::write(&old_path, "data").unwrap();
+
+        let result = rename_file(old_path.to_string_lossy().to_string(), new_path.to_string_lossy().to_string());
+        assert!(result.is_ok());
+        assert!(new_path.exists());
+        assert!(!old_path.exists());
+    }
+
+    #[test]
+    fn test_rename_file_error() {
+        let result = rename_file("nonexistent.txt".to_string(), "new.txt".to_string());
+        assert!(result.is_err());
+    }
+}
