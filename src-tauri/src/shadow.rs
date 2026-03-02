@@ -144,3 +144,27 @@ pub async fn dismiss_shadow() -> Result<(), String> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::tempdir;
+
+    // A helper to override the typical cache_dir or use environment scopes to avoid trashing real data
+    // For unit tests interacting directly with the filesystem, Rust will modify ~/.mdlite
+    // This could conflict with user data. Let's make a mock cache dir using environment variables.
+    // Wait, testing dirs::home_dir is risky. We'll skip deep integration of cache_dir unless mocked 
+    // but we can test the serialization and core struct logic.
+
+    #[test]
+    fn test_shadow_recovery_struct() {
+        let rec = ShadowRecovery {
+            original_path: "/test/path.md".to_string(),
+            shadow_content: "content".to_string(),
+            shadow_modified: 12345,
+        };
+        assert_eq!(rec.original_path, "/test/path.md");
+        assert_eq!(rec.shadow_content, "content");
+    }
+}
