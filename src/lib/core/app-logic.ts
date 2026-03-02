@@ -1,6 +1,8 @@
 import { saveFile } from "./shortcuts";
-import { fileState } from "./stores/file.svelte";
-import { uiState } from "./stores/ui.svelte";
+// @ts-ignore
+import { fileState } from "../stores/file.svelte.ts";
+// @ts-ignore
+import { uiState } from "../stores/ui.svelte.ts";
 
 export function deriveFileName(filePath: string): string {
     return filePath ? filePath.split("/").pop() || "Untitled" : "Untitled";

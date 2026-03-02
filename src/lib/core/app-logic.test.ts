@@ -7,8 +7,10 @@ import {
     scheduleAutoSave,
     scheduleShadowSave,
 } from './app-logic';
-import { fileState } from './stores/file.svelte';
-import { uiState } from './stores/ui.svelte';
+// @ts-ignore
+import { fileState } from '../stores/file.svelte.ts';
+// @ts-ignore
+import { uiState } from '../stores/ui.svelte.ts';
 
 // Mock the shortcuts module so saveFile is a vi.fn()
 vi.mock('./shortcuts', () => ({
