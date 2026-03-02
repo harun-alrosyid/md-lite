@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, fireEvent, screen } from '@testing-library/svelte';
 import WysiwygEditor from './WysiwygEditor.svelte';
-import * as env from './env';
+import * as env from '../core/env';
 import * as shell from '@tauri-apps/plugin-shell';
 import type { Editor } from '@tiptap/core';
 
 // Mock Tauri env and shell
-vi.mock('./env', () => ({
+vi.mock('../core/env', () => ({
     isTauri: false,
 }));
 
@@ -65,7 +65,7 @@ describe('WysiwygEditor.svelte', () => {
 
         expect(editorInstance).not.toBeNull();
         if (editorInstance) {
-            editorInstance.commands.insertContent('Test insertion');
+            (editorInstance as Editor).commands.insertContent('Test insertion');
             // Testing Library doesn't easily trigger Tiptap's internal MutationObservers
             // So we manually verified the command triggered the onUpdate callback natively
             expect(onUpdateMock).toHaveBeenCalled();

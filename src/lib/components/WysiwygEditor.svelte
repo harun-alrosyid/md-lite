@@ -6,9 +6,9 @@
   import Typography from "@tiptap/extension-typography";
   import TaskList from "@tiptap/extension-task-list";
   import TaskItem from "@tiptap/extension-task-item";
-  import { CustomLink } from "./CustomLink";
-  import { CustomImage } from "./CustomImage";
-  import { isTauri } from "./env";
+  import { CustomLink } from "../extensions/CustomLink";
+  import { CustomImage } from "../extensions/CustomImage";
+  import { isTauri } from "../core/env";
   import { open } from "@tauri-apps/plugin-shell";
   import Table from "@tiptap/extension-table";
   import TableRow from "@tiptap/extension-table-row";
@@ -21,16 +21,16 @@
   import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
   import { common, createLowlight } from "lowlight";
   import { Markdown } from "tiptap-markdown";
-  import { SearchReplace } from "./search-replace";
-  import { FocusMode } from "./focus-mode";
+  import { SearchReplace } from "../core/search-replace";
+  import { FocusMode } from "../core/focus-mode";
   import {
     extractHeadings,
     getActiveHeading,
     type OutlineHeading,
-  } from "./outline";
+  } from "../core/outline";
 
   // Import syntax highlighting theme
-  import "./hljs-theme.css";
+  import "../styles/hljs-theme.css";
 
   // Create lowlight instance with common languages
   // Includes: javascript, typescript, python, rust, go, html/xml, css,
