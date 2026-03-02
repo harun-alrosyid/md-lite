@@ -6,7 +6,7 @@ authors = ["you"]
 edition = "2021"
 
 [lib]
-name = "md_light_lib"
+name = "md_lite_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -21,3 +21,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["fs"] }
 dirs = "6"
+
+[dev-dependencies]
+tempfile = "3.10"
+tokio = { version = "1", features = ["macros", "rt"] }
