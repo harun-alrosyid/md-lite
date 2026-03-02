@@ -60,33 +60,43 @@ describe('commands - createCommands', () => {
         }
     });
 
-    it('new-file command calls onNew handler', () => {
-        const handlers = makeHandlers();
-        const cmds = createCommands(handlers, defaultShortcuts);
-        const cmd = cmds.find((c) => c.id === 'new-file');
-        expect(cmd).toBeDefined();
-        cmd!.action();
-        expect(handlers.onNew).toHaveBeenCalledOnce();
-    });
-
-    it('toggle-focus-mode command calls onToggleFocusMode', () => {
-        const handlers = makeHandlers();
-        const cmds = createCommands(handlers, defaultShortcuts);
-        const cmd = cmds.find((c) => c.id === 'toggle-focus-mode');
-        expect(cmd).toBeDefined();
-        cmd!.action();
-        expect(handlers.onToggleFocusMode).toHaveBeenCalledOnce();
-    });
-
-    it('heading commands pass correct level', () => {
+    it('every command action calls the mapped handler', () => {
         const handlers = makeHandlers();
         const cmds = createCommands(handlers, defaultShortcuts);
 
-        for (let level = 1; level <= 6; level++) {
-            const cmd = cmds.find((c) => c.id === `heading-${level}`);
-            expect(cmd).toBeDefined();
-            cmd!.action();
-            expect(handlers.onSetHeading).toHaveBeenCalledWith(level);
+        const handlerMap: Record<string, keyof CommandHandlers> = {
+            'custom-shortcuts': 'onOpenShortcutConfig',
+            'new-file': 'onNew',
+            'open-file': 'onOpen',
+            'save': 'onSave',
+            'save-as': 'onSaveAs',
+            'close': 'onClose',
+            'go-home': 'onGoHome',
+            'toggle-theme': 'onToggleTheme',
+            'toggle-focus-mode': 'onToggleFocusMode',
+            'toggle-outline': 'onToggleOutline',
+            'find-replace': 'onFind',
+            'paragraph': 'onSetParagraph',
+            'bold': 'onToggleBold',
+            'italic': 'onToggleItalic',
+            'strikethrough': 'onToggleStrikethrough',
+            'highlight': 'onToggleHighlight',
+            'blockquote': 'onToggleBlockquote',
+            'bullet-list': 'onToggleBulletList',
+            'ordered-list': 'onToggleOrderedList',
+            'code-block': 'onToggleCodeBlock',
+            'horizontal-rule': 'onInsertHorizontalRule',
+        };
+
+        for (const cmd of cmds) {
+            cmd.action();
+            if (cmd.id.startsWith('heading-')) {
+                const level = parseInt(cmd.id.replace('heading-', ''), 10);
+                expect(handlers.onSetHeading).toHaveBeenCalledWith(level);
+            } else {
+                const handlerName = handlerMap[cmd.id];
+                expect(handlers[handlerName]).toHaveBeenCalled();
+            }
         }
     });
 
@@ -111,24 +121,22 @@ describe('commands - filterCommands', () => {
 
     it('filters by label (case insensitive)', () => {
         const result = filterCommands(cmds, 'bold');
-        expect(result.length).toBe(2);
-        expect(result[0].id).toBe('custom-shortcuts');
-        expect(result[1].id).toBe('bold');
+        expect(result.length).toBe(1);
+        expect(result[0].id).toBe('bold');
     });
 
     it('filters by partial match', () => {
         const result = filterCommands(cmds, 'head');
-        expect(result.length).toBe(7); // settings + heading-1 through heading-6
-        expect(result[0].id).toBe('custom-shortcuts');
-        for (let i = 1; i < result.length; i++) {
+        expect(result.length).toBe(6); // heading-1 through heading-6
+        for (let i = 0; i < result.length; i++) {
             expect(result[i].id).toMatch(/^heading-/);
         }
     });
 
     it('filters by category', () => {
         const result = filterCommands(cmds, 'file');
-        expect(result[0].id).toBe('custom-shortcuts');
-        const allFile = result.slice(1).every(
+        expect(result[0].id).toBe('new-file'); // First file command
+        const allFile = result.every(
             (c) => c.category === 'File' || c.label.toLowerCase().includes('file'),
         );
         expect(allFile).toBe(true);
@@ -136,13 +144,17 @@ describe('commands - filterCommands', () => {
 
     it('supports multi-word fuzzy query', () => {
         const result = filterCommands(cmds, 'toggle dark');
-        expect(result.length).toBe(2);
-        expect(result[0].id).toBe('custom-shortcuts');
-        expect(result[1].id).toBe('toggle-theme');
+        expect(result.length).toBe(1);
+        expect(result[0].id).toBe('toggle-theme');
     });
 
     it('returns empty array when no match', () => {
         const result = filterCommands(cmds, 'xyznonexistent');
+        expect(result.length).toBe(0);
+    });
+
+    it('always places custom-shortcuts at the top if it matches the query', () => {
+        const result = filterCommands(cmds, 'shortcut');
         expect(result.length).toBe(1);
         expect(result[0].id).toBe('custom-shortcuts');
     });
