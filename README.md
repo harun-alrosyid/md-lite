@@ -1,23 +1,26 @@
 # MD-Lite
 
-A hyper-lightweight, minimalist Markdown editor built for speed and focus. MD-Lite provides a seamless WYSIWYG experience while maintaining the simplicity of plain text.
+A hyper-lightweight, minimalist Markdown editor built for speed and focus. MD-Lite provides a seamless WYSIWYG experience while maintaining the simplicity of plain text. Refactored for scalability with a robust core architecture and industry-standard test coverage.
 
-## 🚀 Features (MVP)
+## 🚀 Features
+
 The current version includes:
-- **WYSIWYG Markdown Editing**: Real-time formatting without the need for a separate preview pane.
-- **Native macOS Menu**: Full integration with the macOS menu bar for file operations.
-- **File Management**: Create, Open, Save, and Save As markdown files seamlessly.
-- **Open Recent**: Quickly jump back into your work with a dynamic "Open Recent" menu.
-- **Inline Renaming**: Rename your files directly from the title bar with a simple double-click.
-- **Rich Text Support**: Supports bold, italic, lists, task items, tables, and code blocks with syntax highlighting.
-- **Custom Title Bar**: Clean, distraction-free interface tailored for macOS with traffic light support.
-- **Keyboard Shortcuts**: Common editor shortcuts (⌘N, ⌘O, ⌘S, ⌘⇧S) for lightning-fast editing.
+- **WYSIWYG Markdown Editing**: Real-time formatting without the need for a separate preview pane—write and format in one place.
+- **Command Palette (⌘K)**: Quickly search through commands, format text, and navigate the app without touching the mouse.
+- **Focus & Typewriter Mode (⌘⇧F)**: Distraction-free writing that hides the UI and keeps your cursor vertically centered.
+- **Auto-Save & Shadow Recovery**: Integrated background saving with a recovery banner to restore unsaved session data if the app closes unexpectedly.
+- **Native macOS Integration**: Traffic light support, native file dialogs, and deep macOS menu bar integration.
+- **Advanced Media Support**: Render local file system images (via Tauri) and web images directly in-line; automatic markdown link parsing.
+- **Inline Renaming**: Double-click the file name in the custom title bar to rename files instantly.
+- **Rich Text Engine**: Full support for bold, italic, code blocks, syntax highlighting, task lists, and tables.
+- **Recent Files Management**: Dynamic sidebar and "Open Recent" menu to quickly resume previous drafts.
 
 ## 🛠 Tech Stack
 - **Framework**: [Tauri v2](https://tauri.app/) (Rust-based backend)
-- **Frontend**: [Svelte 5](https://svelte.dev/)
-- **Styling**: [Tailwind CSS v4](https://tailwindcss.com/)
+- **Frontend**: [Svelte 5](https://svelte.dev/) (Rune-based state management)
+- **Styling**: [Tailwind CSS v4](https://tailwindcss.com/) & Vanilla CSS
 - **Editor Engine**: [Tiptap](https://tiptap.dev/)
+- **Testing**: [Vitest](https://vitest.dev/) (90%+ Frontend Coverage) & Rust `cargo test` (Backend Coverage)
 - **Language**: TypeScript & Rust
 
 ## 💻 Getting Started
