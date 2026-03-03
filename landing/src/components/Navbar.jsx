@@ -39,7 +39,7 @@ export default function Navbar() {
 
                 {/* Logo */}
                 <button onClick={() => go('home')} className="flex items-center gap-2.5 font-bold text-lg tracking-tight select-none">
-                    <img src="/favicon.png" alt="MD Lite Logo" className="w-6 h-6 object-contain" />
+                    <img src="/logo.png" alt="MD Lite Logo" className="w-6 h-6 object-contain" />
                     <span className="text-inherit">MD Lite</span>
                 </button>
 

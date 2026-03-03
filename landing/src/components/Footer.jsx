@@ -8,7 +8,7 @@ export default function Footer() {
 
                     {/* Brand */}
                     <div className="flex items-center gap-2.5">
-                        <img src="/favicon.png" alt="MD Lite Logo" className="w-6 h-6 object-contain" />
+                        <img src="/logo.png" alt="MD Lite Logo" className="w-6 h-6 object-contain" />
                         <span className="font-bold text-lg tracking-tight">MD Lite</span>
                     </div>
 
