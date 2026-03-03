@@ -274,6 +274,7 @@
       const newPath = await renameFile(fileState.filePath, newName);
       const oldPath = fileState.filePath;
       fileState.filePath = newPath;
+      fileState.isDirty = true;
       removeRecentFile(oldPath);
       addRecentFile(newPath);
       refreshRecents();
@@ -390,7 +391,7 @@
   isSaving={fileState.isSaving}
   theme={uiState.theme}
   hasFile={!!fileState.filePath || fileState.content !== ""}
-  onToggleTheme={toggleTheme}
+  onToggleTheme={commandHandlers.onToggleTheme}
   onRename={handleRename}
   onToggleOutline={commandHandlers.onToggleOutline}
 />

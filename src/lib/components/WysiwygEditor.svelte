@@ -244,6 +244,8 @@
     isSettingContent = true;
     editor.commands.setContent(md);
     isSettingContent = false;
+    // Refresh outline headings after setting new content
+    updateOutline(editor);
   }
 
   export function focus() {

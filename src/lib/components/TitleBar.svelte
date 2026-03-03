@@ -31,6 +31,7 @@
   }
 
   function commit() {
+    if (!editing) return;
     editing = false;
     const trimmed = draft.trim();
     if (!trimmed || trimmed === fileName) return;
