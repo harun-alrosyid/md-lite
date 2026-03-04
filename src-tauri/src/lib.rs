@@ -70,6 +70,21 @@ pub fn run() {
                 Some("CmdOrCtrl+Shift+S"),
             )?;
 
+            let export_item = MenuItem::with_id(
+                app,
+                "menu-export-as",
+                "Export As…",
+                true,
+                Some("CmdOrCtrl+Shift+E"),
+            )?;
+            let import_item = MenuItem::with_id(
+                app,
+                "menu-import",
+                "Import…",
+                true,
+                Some("CmdOrCtrl+Shift+I"),
+            )?;
+
             let file_menu = Submenu::with_items(
                 app,
                 "File",
@@ -81,6 +96,9 @@ pub fn run() {
                     &PredefinedMenuItem::separator(app)?,
                     &save_file_item,
                     &save_as_item,
+                    &PredefinedMenuItem::separator(app)?,
+                    &export_item,
+                    &import_item,
                 ],
             )?;
 
