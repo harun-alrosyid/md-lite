@@ -5,4 +5,6 @@ export const uiState = $state({
     showCommandPalette: false,
     showOutline: false,
     showShortcutModal: false,
+    showExportDialog: false,
+    showImportDialog: false,
 });
