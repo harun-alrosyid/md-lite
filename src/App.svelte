@@ -9,6 +9,8 @@
   import ShortcutConfigModal from "./lib/components/ShortcutConfigModal.svelte";
   import OutlinePanel from "./lib/components/OutlinePanel.svelte";
   import FormatBar from "./lib/components/FormatBar.svelte";
+  import ExportDialog from "./lib/components/ExportDialog.svelte";
+  import ImportDialog from "./lib/components/ImportDialog.svelte";
   import type { OutlineHeading } from "./lib/core/outline";
   import { scrollToHeading } from "./lib/core/outline";
   import type { CommandHandlers } from "./lib/core/commands";
@@ -82,6 +84,14 @@
       localStorage.setItem("md-lite-focus", String(uiState.focusMode));
     },
     onGoHome: handleGoHome,
+    onExportAs: () => {
+      uiState.showCommandPalette = false;
+      uiState.showExportDialog = true;
+    },
+    onImport: () => {
+      uiState.showCommandPalette = false;
+      uiState.showImportDialog = true;
+    },
     onCommandPalette: () => {
       uiState.showCommandPalette = true;
     },
@@ -370,6 +380,12 @@
       listen("menu-open-file", handleOpen)?.then((f) => unlistenMenu?.push(f));
       listen("menu-save-file", handleSave)?.then((f) => unlistenMenu?.push(f));
       listen("menu-save-as", handleSaveAs)?.then((f) => unlistenMenu?.push(f));
+      listen("menu-export-as", () => {
+        uiState.showExportDialog = true;
+      })?.then((f) => unlistenMenu?.push(f));
+      listen("menu-import", () => {
+        uiState.showImportDialog = true;
+      })?.then((f) => unlistenMenu?.push(f));
       listen("open-recent", (evt: any) => handleOpenRecent(evt.payload))?.then(
         (f) => unlistenMenu?.push(f),
       );
@@ -612,6 +628,24 @@
   visible={uiState.showShortcutModal}
   onClose={() => (uiState.showShortcutModal = false)}
   onSave={reloadShortcuts}
+/>
+
+<ExportDialog
+  visible={uiState.showExportDialog}
+  content={fileState.content}
+  htmlContent={editorRef?.getHTML() || ""}
+  currentFileName={deriveFileName(fileState.filePath)}
+  onClose={() => (uiState.showExportDialog = false)}
+/>
+
+<ImportDialog
+  visible={uiState.showImportDialog}
+  onClose={() => (uiState.showImportDialog = false)}
+  onImported={(content, sourcePath) => {
+    fileState.content = content;
+    fileState.isDirty = true;
+    updateTelemetry(content);
+  }}
 />
 
 <style>

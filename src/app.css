@@ -85,3 +85,50 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-text-secondary);
 }
+
+/* ===== Print Styles (PDF Export) ===== */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  
+  #app {
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Hide UI elements */
+  .titlebar,
+  .format-bar,
+  .status-bar,
+  .sidebar,
+  .palette-backdrop,
+  .export-backdrop,
+  .import-backdrop,
+  .recovery-banner,
+  .search-bar-container {
+    display: none !important;
+  }
+
+  /* Reset main content layout for printing */
+  .main-content {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    position: static !important;
+  }
+
+  .editor-wrapper {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .ProseMirror {
+    color: black !important;
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+  }
+}

@@ -19,6 +19,8 @@ export interface CommandHandlers {
     onSave: () => void;
     onSaveAs: () => void;
     onClose: () => void;
+    onExportAs: () => void;
+    onImport: () => void;
     onToggleTheme: () => void;
     onToggleFocusMode: () => void;
     onFind: () => void;
@@ -98,6 +100,20 @@ export function createCommands(handlers: CommandHandlers, config: ShortcutConfig
             shortcut: format("onGoHome"),
             category: "File",
             action: handlers.onGoHome,
+        },
+        {
+            id: "export-as",
+            label: "Export As…",
+            shortcut: "⌘⇧E",
+            category: "File",
+            action: handlers.onExportAs,
+        },
+        {
+            id: "import-file",
+            label: "Import…",
+            shortcut: "⌘⇧I",
+            category: "File",
+            action: handlers.onImport,
         },
 
         // --- View ---
