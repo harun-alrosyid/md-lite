@@ -36,6 +36,9 @@ beforeEach(() => {
 
 let capturedOnUpdate: ((markdown: string) => void) | null = null;
 let capturedOnRename: ((newName: string) => void) | null = null;
+let capturedExportClose: (() => void) | null = null;
+let capturedImportClose: (() => void) | null = null;
+let capturedOnImported: ((content: string, path: string) => void) | null = null;
 
 vi.mock('./lib/components/TitleBar.svelte', () => {
     return {
@@ -61,6 +64,31 @@ vi.mock('./lib/components/WysiwygEditor.svelte', () => {
                         capturedOnUpdate = props.onUpdate;
                     }
                 }
+            } catch { }
+        },
+    };
+});
+
+vi.mock('./lib/components/ExportDialog.svelte', () => {
+    return {
+        default: function MockExportDialog(this: any, ...args: any[]) {
+            try {
+                const propsGetter = args[1];
+                const props = typeof propsGetter === 'function' ? propsGetter() : propsGetter;
+                if (props?.onClose) capturedExportClose = props.onClose;
+            } catch { }
+        },
+    };
+});
+
+vi.mock('./lib/components/ImportDialog.svelte', () => {
+    return {
+        default: function MockImportDialog(this: any, ...args: any[]) {
+            try {
+                const propsGetter = args[1];
+                const props = typeof propsGetter === 'function' ? propsGetter() : propsGetter;
+                if (props?.onClose) capturedImportClose = props.onClose;
+                if (props?.onImported) capturedOnImported = props.onImported;
             } catch { }
         },
     };
@@ -120,6 +148,9 @@ describe('App - Core', () => {
         localStorage.clear();
         document.documentElement.removeAttribute('data-theme');
         capturedOnUpdate = null;
+        capturedExportClose = null;
+        capturedImportClose = null;
+        capturedOnImported = null;
     });
 
     afterEach(() => {
@@ -663,5 +694,49 @@ describe('App - Recent Files', () => {
 
         expect(consoleSpy).toHaveBeenCalledWith('Open recent failed:', expect.any(Error));
         consoleSpy.mockRestore();
+    });
+});
+
+describe('App - Dialog Handlers', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        vi.useFakeTimers();
+        uiState.showExportDialog = true;
+        uiState.showImportDialog = true;
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    async function renderAndFlush() {
+        const result = render(App);
+        await vi.advanceTimersByTimeAsync(0);
+        await tick();
+        return result;
+    }
+
+    it('ExportDialog onClose resets showExportDialog state', async () => {
+        await renderAndFlush();
+        expect(typeof capturedExportClose).toBe('function');
+        capturedExportClose?.();
+        expect(uiState.showExportDialog).toBe(false);
+    });
+
+    it('ImportDialog onClose resets showImportDialog state', async () => {
+        await renderAndFlush();
+        expect(typeof capturedImportClose).toBe('function');
+        capturedImportClose?.();
+        expect(uiState.showImportDialog).toBe(false);
+    });
+
+    it('ImportDialog onImported applies imported content to fileState', async () => {
+        await renderAndFlush();
+        expect(typeof capturedOnImported).toBe('function');
+        
+        capturedOnImported?.('# Imported text', '/imported/file.md');
+        
+        expect(fileState.content).toBe('# Imported text');
+        expect(fileState.isDirty).toBe(true);
     });
 });
